@@ -649,6 +649,8 @@ function AuthScreen() {
       const loginName = identifier.trim().toLowerCase();
       const loginEmail = loginName === "alimaliki"
         ? "alimaliki@earthlink.iq"
+        : loginName === "operations-team"
+          ? "opt@earthlink.iq"
         : loginName.includes("@")
           ? loginName
           : `${normalizeUsername(loginName)}@teams.wasla.invalid`;
