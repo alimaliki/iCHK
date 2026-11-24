@@ -257,6 +257,10 @@ on public.tasks for update to authenticated
 using (public.is_supervisor() or team_id = (select public.current_team_id()))
 with check (public.is_supervisor() or team_id = (select public.current_team_id()));
 
+create policy "Supervisors delete tasks"
+on public.tasks for delete to authenticated
+using (public.is_supervisor());
+
 create policy "Users read messages for accessible tasks"
 on public.messages for select to authenticated
 using (

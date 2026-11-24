@@ -1936,7 +1936,7 @@ function Workspace({ user, profile }) {
   async function confirmDeleteTask() {
     if (!deletingTask) return;
     try {
-      await httpsCallable(functions, "deleteTask")({ taskId: deletingTask.id });
+      await deleteDoc(doc(db, "tasks", deletingTask.id));
       setModal("");
       setDeletingTask(null);
     } catch (deleteError) {
