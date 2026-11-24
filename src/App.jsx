@@ -647,9 +647,11 @@ function AuthScreen() {
     setBusy(true);
     try {
       const loginName = identifier.trim().toLowerCase();
-      const loginEmail = loginName.includes("@")
-        ? loginName
-        : `${normalizeUsername(loginName)}@teams.wasla.invalid`;
+      const loginEmail = loginName === "alimaliki"
+        ? "alimaliki@earthlink.iq"
+        : loginName.includes("@")
+          ? loginName
+          : `${normalizeUsername(loginName)}@teams.wasla.invalid`;
       await signInWithEmailAndPassword(auth, loginEmail, password);
     } catch (submitError) {
       setError(submitError.message === "اسم المستخدم غير صالح."

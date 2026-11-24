@@ -18,6 +18,7 @@ function toUser(user) {
   if (!user) return null;
   return {
     ...user,
+    uid: user.id,
     displayName: user.user_metadata?.display_name || user.user_metadata?.full_name || "",
   };
 }
