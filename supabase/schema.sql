@@ -48,8 +48,8 @@ create table public.tasks (
     and governorates <@ array['AN', 'KR', 'NJ', 'BB', 'BG', 'QA', 'MU', 'DQ', 'BS', 'MY', 'WA', 'NI', 'DH', 'SD', 'DY', 'KI', 'ER', 'SU']::text[]
   ),
   governorate text not null check (governorate = governorates[1]),
-  team_id uuid not null references public.teams(id),
-  team_name text not null,
+  team_id uuid references public.teams(id),
+  team_name text,
   status text not null default 'open' check (status in ('open', 'onHold', 'done')),
   archived boolean not null default false,
   check_status text not null default 'none' check (check_status in ('none', 'requested', 'checked')),
@@ -141,7 +141,7 @@ begin
     if new.id <> old.id or new.task_number <> old.task_number then
       raise exception 'Task identifiers cannot be changed';
     end if;
-    if new.team_name <> (select name from public.teams where id = new.team_id) then
+    if new.team_name is distinct from (select name from public.teams where id = new.team_id) then
       raise exception 'Task team name must match its assigned team';
     end if;
     if (to_jsonb(new) - array['status', 'archived', 'closed_at'])
@@ -267,7 +267,10 @@ with check (
   public.is_supervisor()
   and created_by = (select auth.uid())
   and id = task_number
-  and team_name = (select name from public.teams where id = team_id)
+  and (
+    (team_id is null and team_name is null)
+    or (team_id is not null and team_name = (select name from public.teams where id = team_id))
+  )
 );
 
 create policy "Users read tasks for their role"

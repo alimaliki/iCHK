@@ -8,7 +8,7 @@
 2. من **Project Settings → API** انسخ Project URL و`anon`/publishable key إلى `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
 3. أضف القيمتين نفسيهما إلى `SUPABASE_URL`، وانسخ `service_role` key إلى `SUPABASE_SERVICE_ROLE_KEY`. المفتاح السري للخادم فقط؛ لا تضعه في متغير يبدأ بـ `VITE_` ولا تشاركه.
 4. من **SQL Editor** شغّل محتوى [`supabase/schema.sql`](./supabase/schema.sql).
-   للمشاريع الموجودة، شغّل [`supabase/migrate_case_details.sql`](./supabase/migrate_case_details.sql) لتحديث الفرق والمهام وسياسة التعديل، بما فيها دعم الفرق دون حساب دخول ووقت تحديثها، وحذف ملفات حسابات الفرق عند حذف الفريق، والشفت وتفاصيل الكيس ووقت الإغلاق، ومنح `service_role` صلاحيات الوظائف الإدارية، دون إعادة إنشاء الجداول.
+   للمشاريع الموجودة، شغّل [`supabase/migrate_case_details.sql`](./supabase/migrate_case_details.sql) لتحديث الفرق والمهام وسياسة التعديل، بما فيها دعم الفرق دون حساب دخول ووقت تحديثها، وحذف ملفات حسابات الفرق عند حذف الفريق، والشفت وتفاصيل الكيس ووقت الإغلاق، وإنشاء المهام دون إسناد أولي لفريق، ومنح `service_role` صلاحيات الوظائف الإدارية، دون إعادة إنشاء الجداول.
 5. من **Authentication → Providers** فعّل Email. من إعدادات Authentication أضف نطاق Vercel ضمن **Site URL / Redirect URLs** بعد النشر.
 6. أنشئ حساب مسؤول من **Authentication → Users**، ثم نفّذ الاستعلام التالي في SQL Editor مع استبدال البريد:
 
@@ -41,6 +41,6 @@ npm run dev
 
 ## ملاحظات
 
-- قواعد RLS في `supabase/schema.sql` تقصر بيانات المهام على مسؤول الشفت والفريق المعيّن، وتحمي محادثات المهام.
+- قواعد RLS في `supabase/schema.sql` تقصر بيانات المهام على مسؤول الشفت والفريق المعيّن، وتحمي محادثات المهام. تظهر المهام غير المسندة للمسؤول فقط حتى يختار لها فريقاً.
 - تنبيهات الجيك تعمل أثناء فتح التطبيق عبر Supabase Realtime؛ إشعارات الخلفية أثناء إغلاق الموقع لم تعد متاحة بعد إزالة Firebase Messaging.
 - إعداد Supabase جديد لا يستورد بيانات Firebase تلقائياً. صدّر بيانات Firebase القديمة وخطّط لترحيلها قبل إيقاف مشروع Firebase إذا كانت البيانات الحالية مطلوبة.

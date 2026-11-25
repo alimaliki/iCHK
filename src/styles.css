@@ -2242,6 +2242,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .case-form-fields legend { padding: 0 6px; color: var(--ink); font-size: 11px; font-weight: 700; }
 .case-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .case-form-grid label { min-width: 0; }
+.case-form-grid label small { color: var(--muted-ink); font-size: 10px; font-weight: 400; }
 .case-form-grid input,
 .case-form-grid textarea,
 .case-form-grid select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--app-canvas); font: inherit; font-size: 11px; font-weight: 400; }

@@ -290,6 +290,7 @@ const english = {
   "سيضيف المتابع المهام هنا. ستجد محادثة خاصة بكل مهمة.": "Your supervisor will assign work here. Each task has its own conversation.",
   "إنشاء مهمة جديدة": "Create a task",
   "ستكون لهذه المهمة محادثة مستقلة تظهر للفريق.": "This work order will have a dedicated conversation for its assigned crew.",
+  "ستُنشأ المهمة بدون إسناد إلى فريق، ويمكنك اختيار الفريق لاحقاً من التعديل.": "The task will be created unassigned. You can assign a crew later by editing it.",
   "اسم المهمة": "Task title",
   "المنطقة / الموقع": "Area / site",
   "تفاصيل إضافية": "Work details",
@@ -297,6 +298,9 @@ const english = {
   "أضف وصفاً يساعد الفريق...": "Add site notes or work instructions...",
   "إنشاء المهمة": "Create task",
   "اختر الفريق": "Assign to crew",
+  "غير مسند": "Unassigned",
+  "اختر فريقاً صالحاً لإسناد المهمة، أو اتركها بدون إسناد.": "Select a valid crew or leave the task unassigned.",
+  "تُحدَّد المحافظة تلقائياً حسب المنطقة.": "The governorate is selected automatically from the region.",
   "حدد الفريق الذي سيتولى هذه المهمة.": "Choose the field crew responsible for this task.",
   "أنشئ دعوة مرتبطة ببريد العضو، ثم أرسل له الرمز.": "Create an invite for the member's email and share the code.",
   "تم إنشاء الدعوة": "Invitation created",
@@ -559,6 +563,26 @@ function getGovernorateCodeFromRegion(region) {
   if (!normalized) return "";
   return Object.entries(governorateAliases).find(([, aliases]) =>
     aliases.some((alias) => normalizeGovernorateText(alias) === normalized))?.[0] || "";
+}
+
+function getTaskGovernorateForRegion(region) {
+  return getGovernorateCodeFromRegion(region) || "DQ";
+}
+
+function createTaskNumber() {
+  if (!globalThis.crypto?.randomUUID) {
+    throw new Error("تعذر إنشاء رقم المهمة تلقائياً. حدّث المتصفح ثم حاول مجدداً.");
+  }
+  return `FO-${globalThis.crypto.randomUUID().toUpperCase()}`;
+}
+
+function createTaskTitle(caseDetails, taskNumber) {
+  const identifier = caseDetails.src
+    ? `SRC ${caseDetails.src}`
+    : caseDetails.fdt
+      ? `FDT ${caseDetails.fdt}`
+      : caseDetails.region || taskNumber;
+  return identifier.slice(0, 160);
 }
 
 function getTaskLocationLabel(task, language) {
@@ -1159,7 +1183,7 @@ function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelet
       <div className="task-meta">
         <span><AppIcon className="meta-icon" name="task" size={15} /> {t("رقم المهمة")} <strong>{task.taskNumber}</strong></span>
         <span><AppIcon className="meta-icon" name="calendar" size={15} /> {t("تاريخ الإضافة")} <strong>{formatDate(task.createdAt, language)}</strong></span>
-        <span><AppIcon className="meta-icon" name="users" size={15} /> {t("الفريق")} <strong>{t(task.teamName || "فريق الميدان")}</strong></span>
+        <span><AppIcon className="meta-icon" name="users" size={15} /> {t("الفريق")} <strong>{t(task.teamName || "غير مسند")}</strong></span>
         {(task.location || getGovernorateCodeFromRegion(task.region)) && <span><AppIcon className="meta-icon" name="pin" size={15} /> {t("الموقع")} <strong>{t(getTaskLocationLabel(task, language))}</strong></span>}
       </div>
       <div className={`task-map-focus ${governorateCodes.length ? "located" : "unlocated"}`}>
@@ -1234,7 +1258,7 @@ function CaseDetailsFields({ values, onChange, description, onDescriptionChange 
         {field("src", "رقم SRC", { maxLength: 100 })}
         {field("fmsId", "معرّف FMS", { type: "url", placeholder: "https://...", maxLength: 2048 })}
         {field("department", "القسم", { maxLength: 120 })}
-        {field("region", "المنطقة", { maxLength: 120 })}
+        <label>{t("المنطقة")}<input value={values.region || ""} onChange={(event) => onChange("region", event.target.value)} maxLength="120" /><small>{t("تُحدَّد المحافظة تلقائياً حسب المنطقة.")}</small></label>
         {field("fdt", "FDT", { maxLength: 120 })}
         <label>{t("الوصف")}<textarea value={description} onChange={(event) => onDescriptionChange(event.target.value)} rows="2" maxLength="2000" /></label>
         {field("efu", "EFU", { maxLength: 80 })}
@@ -2016,13 +2040,8 @@ function Workspace({ user, profile }) {
   const notificationsEnabledRef = useRef(notificationsEnabled);
   tasksRef.current = tasks;
   notificationsEnabledRef.current = notificationsEnabled;
-  const [taskNumber, setTaskNumber] = useState("");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskLocation, setTaskLocation] = useState("");
-  const [taskGovernorates, setTaskGovernorates] = useState([]);
   const [taskDescription, setTaskDescription] = useState("");
   const [taskCaseDetails, setTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
-  const [taskTeamId, setTaskTeamId] = useState("");
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamShift, setNewTeamShift] = useState("morning");
   const [supervisorDisplayName, setSupervisorDisplayName] = useState(user.displayName || profile.displayName || "");
@@ -2032,12 +2051,9 @@ function Workspace({ user, profile }) {
   const [profileNewPassword, setProfileNewPassword] = useState("");
   const [profileNotice, setProfileNotice] = useState("");
   const [editingTask, setEditingTask] = useState(null);
-  const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
   const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
   const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
-  const [editTaskLocation, setEditTaskLocation] = useState("");
-  const [editTaskGovernorates, setEditTaskGovernorates] = useState([]);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
   const [deletingTask, setDeletingTask] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
@@ -2141,11 +2157,6 @@ function Workspace({ user, profile }) {
   }, [isSupervisor]);
 
   useEffect(() => {
-    if (teams.length === 0) return;
-    if (!teams.some((team) => team.id === taskTeamId)) setTaskTeamId(teams[0].id);
-  }, [teams, taskTeamId]);
-
-  useEffect(() => {
     if (!selected || showDashboard || showMap) {
       setMessages([]);
       return undefined;
@@ -2205,36 +2216,29 @@ function Workspace({ user, profile }) {
     event.preventDefault();
     setError("");
     try {
-      const number = taskNumber.trim().toUpperCase();
-      const team = teams.find((item) => item.id === taskTeamId);
-      if (!number || !taskTitle.trim()) throw new Error("أدخل رقم المهمة واسمها.");
-      if (!team) throw new Error("أنشئ فريقاً قبل إسناد مهمة.");
-      if (!isValidGovernorateSelection(taskGovernorates)) throw new Error("اختر محافظة واحدة على الأقل.");
-      if (!/^[A-Z0-9_-]{1,40}$/.test(number)) throw new Error("استخدم أرقاماً أو أحرفاً إنجليزية أو - و _ فقط لرقم المهمة.");
-      if (tasks.some((task) => task.taskNumber === number)) throw new Error("رقم المهمة مستخدم بالفعل. اختر رقماً آخر.");
+      const number = createTaskNumber();
+      const caseDetails = normalizeTaskCaseDetails(taskCaseDetails);
+      const title = createTaskTitle(caseDetails, number);
+      const governorate = getTaskGovernorateForRegion(caseDetails.region);
       await setDoc(doc(db, "tasks", number), {
         taskNumber: number,
-        title: taskTitle.trim(),
+        title,
         description: taskDescription.trim(),
-        ...normalizeTaskCaseDetails(taskCaseDetails),
-        location: taskLocation.trim(),
-        governorates: taskGovernorates,
-        governorate: taskGovernorates[0],
-        teamId: team.id,
-        teamName: team.name,
+        ...caseDetails,
+        location: caseDetails.region,
+        governorates: [governorate],
+        governorate,
+        teamId: null,
+        teamName: null,
         status: "open",
         checkStatus: "none",
         createdBy: user.uid,
         createdAt: serverTimestamp(),
       });
-      setSelected({ id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), ...normalizeTaskCaseDetails(taskCaseDetails), location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", checkStatus: "none", createdAt: new Date().toISOString() });
+      setSelected({ id: number, taskNumber: number, title, description: taskDescription.trim(), ...caseDetails, location: caseDetails.region, governorates: [governorate], governorate, teamId: null, teamName: null, status: "open", checkStatus: "none", createdAt: new Date().toISOString() });
       setShowMap(false);
       setShowMembers(false);
       setShowDashboard(false);
-      setTaskNumber("");
-      setTaskTitle("");
-      setTaskLocation("");
-      setTaskGovernorates([]);
       setTaskDescription("");
       setTaskCaseDetails(EMPTY_CASE_DETAILS);
       setModal("");
@@ -2252,11 +2256,10 @@ function Workspace({ user, profile }) {
       if (teams.some((team) => team.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
         throw new Error("يوجد فريق بهذا الاسم بالفعل.");
       }
-      const { data: createdTeam } = await httpsCallable(functions, "createTeam")({
+      await httpsCallable(functions, "createTeam")({
         name,
         shift: newTeamShift,
       });
-      setTaskTeamId(createdTeam.teamId);
       setNewTeamName("");
       setModal("");
     } catch (createError) {
@@ -2360,39 +2363,33 @@ function Workspace({ user, profile }) {
 
   function beginEditTask(task) {
     setEditingTask(task);
-    setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
     setEditTaskClosedAt(toDateTimeInput(task.closedAt));
     setEditTaskCaseDetails(getTaskCaseFormValues(task));
-    setEditTaskLocation(task.location || "");
-    setEditTaskGovernorates(getTaskGovernorateCodes(task));
-    setEditTaskTeamId(task.teamId);
+    setEditTaskTeamId(task.teamId || "");
     setError("");
     setModal("editTask");
   }
 
   async function saveTaskChanges(event) {
     event.preventDefault();
-    const team = teams.find((item) => item.id === editTaskTeamId);
-    if (!editingTask || !team || !editTaskTitle.trim()) {
-      setError("أدخل اسم المهمة واختر الفريق.");
-      return;
-    }
-    if (!isValidGovernorateSelection(editTaskGovernorates)) {
-      setError("اختر محافظة واحدة على الأقل.");
+    const team = editTaskTeamId ? teams.find((item) => item.id === editTaskTeamId) : null;
+    if (!editingTask || (editTaskTeamId && !team)) {
+      setError("اختر فريقاً صالحاً لإسناد المهمة، أو اتركها بدون إسناد.");
       return;
     }
     try {
+      const caseDetails = normalizeTaskCaseDetails(editTaskCaseDetails);
+      const governorate = getTaskGovernorateForRegion(caseDetails.region);
       await updateDoc(doc(db, "tasks", editingTask.id), {
-        title: editTaskTitle.trim(),
         description: editTaskDescription.trim(),
         closedAt: editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null,
-        ...normalizeTaskCaseDetails(editTaskCaseDetails),
-        location: editTaskLocation.trim(),
-        governorates: editTaskGovernorates,
-        governorate: editTaskGovernorates[0],
-        teamId: team.id,
-        teamName: team.name,
+        ...caseDetails,
+        location: caseDetails.region,
+        governorates: [governorate],
+        governorate,
+        teamId: team?.id || null,
+        teamName: team?.name || null,
       });
       setModal("");
       setEditingTask(null);
@@ -2603,7 +2600,7 @@ function Workspace({ user, profile }) {
         onShowTasks={(status) => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(status); }}
         onSelect={(task) => { setSelected(task); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowDashboard(false); }}
         onLogout={() => signOut(auth)}
-        onCreateTask={() => { setError(""); setTaskGovernorates([]); if (teams.length) setModal("task"); else setModal("team"); }}
+        onCreateTask={() => { setError(""); setModal("task"); }}
         onCreateTeam={() => { setError(""); setCreatedTeamCredentials(null); setModal("team"); }}
         onManageTeams={() => { setError(""); setModal("teams"); }}
         onEditProfile={beginEditProfile}
@@ -2635,7 +2632,7 @@ function Workspace({ user, profile }) {
             onToggleTeamAvailability={toggleTeamAvailability}
             selectedTask={selected}
             onOpenTask={(task) => { setSelected(task); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
-            onCreateTask={() => { setError(""); setTaskGovernorates([]); if (teams.length) setModal("task"); else setModal("team"); }}
+            onCreateTask={() => { setError(""); setModal("task"); }}
             onManageTeams={() => { setError(""); setModal("teams"); }}
           />
         ) : selected ? (
@@ -2643,7 +2640,7 @@ function Workspace({ user, profile }) {
             <TaskHeader task={selected} role={role} onStatusChange={changeTaskStatus} onCheckAction={updateCheckStatus} onEdit={beginEditTask} onDelete={(task) => { setDeletingTask(task); setModal("deleteTask"); }} onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }} />
             <CaseDetails task={selected} />
           </div>
-        ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal(teams.length ? "task" : "team"); }} />}
+        ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setModal("task"); }} />}
       </main>
 
       {modal === "profile" && (
@@ -2662,16 +2659,11 @@ function Workspace({ user, profile }) {
       )}
 
       {modal === "task" && (
-        <Modal title={t("إنشاء مهمة جديدة")} subtitle={t("ستكون لهذه المهمة محادثة مستقلة تظهر للفريق.")} onClose={() => setModal("")}>
+        <Modal title={t("إنشاء مهمة جديدة")} subtitle={t("ستُنشأ المهمة بدون إسناد إلى فريق، ويمكنك اختيار الفريق لاحقاً من التعديل.")} onClose={() => setModal("")}>
           <form className="modal-form" onSubmit={createTask}>
-            <label>{t("رقم المهمة")}<input value={taskNumber} onChange={(event) => setTaskNumber(event.target.value)} placeholder="FO-24018" required /></label>
-            <label>{t("اسم المهمة")}<input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder={t("مثال: فحص مسار الألياف - القطاع الشرقي")} maxLength="160" required /></label>
-            <label>{t("اختر الفريق")}<select value={taskTeamId} onChange={(event) => setTaskTeamId(event.target.value)} required><option value="">{t("اختر الفريق")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
-            <GovernoratePicker values={taskGovernorates} onChange={setTaskGovernorates} />
-            <label>{t("المنطقة / الموقع")} <span className="optional">{t("(اختياري)")}</span><input value={taskLocation} onChange={(event) => setTaskLocation(event.target.value)} placeholder={t("مثال: القطاع الشرقي - غرفة التوزيع 4")} maxLength="120" /></label>
             <CaseDetailsFields values={taskCaseDetails} onChange={(key, value) => setTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={taskDescription} onDescriptionChange={setTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
-            <button className="button button-primary full-width" type="submit">{t("إسناد المهمة للفريق")} <AppIcon name="arrowLeft" size={16} /></button>
+            <button className="button button-primary full-width" type="submit">{t("إنشاء المهمة")} <AppIcon name="arrowLeft" size={16} /></button>
           </form>
         </Modal>
       )}
@@ -2679,10 +2671,7 @@ function Workspace({ user, profile }) {
       {modal === "editTask" && editingTask && (
         <Modal title={t("تعديل التكت")} subtitle={`${t("المهمة")} #${editingTask.taskNumber} · ${t("رقم المهمة لا يتغير للحفاظ على سجل المحادثة.")}`} onClose={() => setModal("")}>
           <form className="modal-form" onSubmit={saveTaskChanges}>
-            <label>{t("اسم المهمة")}<input value={editTaskTitle} onChange={(event) => setEditTaskTitle(event.target.value)} maxLength="160" required /></label>
-            <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
-            <GovernoratePicker values={editTaskGovernorates} onChange={setEditTaskGovernorates} />
-            <label>{t("المنطقة / الموقع")}<input value={editTaskLocation} onChange={(event) => setEditTaskLocation(event.target.value)} maxLength="120" /></label>
+            <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)}><option value="">{t("غير مسند")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
             {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
             <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
@@ -2820,24 +2809,16 @@ function DemoWorkspace() {
     ],
   });
   const [modal, setModal] = useState("");
-  const [taskNumber, setTaskNumber] = useState("");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskLocation, setTaskLocation] = useState("");
-  const [taskGovernorates, setTaskGovernorates] = useState([]);
   const [taskDescription, setTaskDescription] = useState("");
   const [taskCaseDetails, setTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
-  const [taskTeamId, setTaskTeamId] = useState("east");
   const [newTeamName, setNewTeamName] = useState("");
   const [newTeamShift, setNewTeamShift] = useState("morning");
   const [error, setError] = useState("");
   const [editingTask, setEditingTask] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
-  const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
   const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
   const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
-  const [editTaskLocation, setEditTaskLocation] = useState("");
-  const [editTaskGovernorates, setEditTaskGovernorates] = useState([]);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
   const visibleTasks = role === "supervisor" ? tasks : tasks.filter((task) => task.teamId === demoTeamId);
   const selected = visibleTasks.find((task) => task.id === selectedId) || visibleTasks[0] || null;
@@ -2862,42 +2843,23 @@ function DemoWorkspace() {
   function createDemoTask(event) {
     event.preventDefault();
     setError("");
-    const number = taskNumber.trim().toUpperCase();
-    if (!/^[A-Z0-9_-]{1,40}$/.test(number)) {
-      setError("استخدم أرقاماً أو أحرفاً إنجليزية أو - و _ فقط لرقم المهمة.");
-      return;
-    }
-    if (tasks.some((task) => task.taskNumber === number)) {
-      setError("رقم المهمة مستخدم بالفعل. اختر رقماً آخر.");
-      return;
-    }
-    const team = teams.find((item) => item.id === taskTeamId);
-    if (!team) {
-      setError("اختر الفريق الذي سيتولى المهمة.");
-      return;
-    }
-    if (!isValidGovernorateSelection(taskGovernorates)) {
-      setError("اختر محافظة واحدة على الأقل.");
-      return;
-    }
     let caseDetails;
+    let number;
     try {
       caseDetails = normalizeTaskCaseDetails(taskCaseDetails);
+      number = createTaskNumber();
     } catch (createError) {
       setError(friendlyError(createError));
       return;
     }
-    const task = { id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), ...caseDetails, location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", checkStatus: "none", createdAt: new Date().toISOString() };
+    const governorate = getTaskGovernorateForRegion(caseDetails.region);
+    const task = { id: number, taskNumber: number, title: createTaskTitle(caseDetails, number), description: taskDescription.trim(), ...caseDetails, location: caseDetails.region, governorates: [governorate], governorate, teamId: null, teamName: null, status: "open", checkStatus: "none", createdAt: new Date().toISOString() };
     setTasks((current) => [task, ...current]);
     setMessagesByTask((current) => ({ ...current, [number]: [] }));
     setSelectedId(number);
     setShowMap(false);
     setShowMembers(false);
     setShowDashboard(false);
-    setTaskNumber("");
-    setTaskTitle("");
-    setTaskLocation("");
-    setTaskGovernorates([]);
     setTaskDescription("");
     setTaskCaseDetails(EMPTY_CASE_DETAILS);
     setError("");
@@ -2906,26 +2868,19 @@ function DemoWorkspace() {
 
   function beginEditDemoTask(task) {
     setEditingTask(task);
-    setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
     setEditTaskClosedAt(toDateTimeInput(task.closedAt));
     setEditTaskCaseDetails(getTaskCaseFormValues(task));
-    setEditTaskLocation(task.location || "");
-    setEditTaskGovernorates(getTaskGovernorateCodes(task));
-    setEditTaskTeamId(task.teamId);
+    setEditTaskTeamId(task.teamId || "");
     setError("");
     setModal("editTask");
   }
 
   function saveDemoTaskChanges(event) {
     event.preventDefault();
-    const team = teams.find((item) => item.id === editTaskTeamId);
-    if (!editingTask || !team || !editTaskTitle.trim()) {
-      setError("أدخل اسم المهمة واختر الفريق.");
-      return;
-    }
-    if (!isValidGovernorateSelection(editTaskGovernorates)) {
-      setError("اختر محافظة واحدة على الأقل.");
+    const team = editTaskTeamId ? teams.find((item) => item.id === editTaskTeamId) : null;
+    if (!editingTask || (editTaskTeamId && !team)) {
+      setError("اختر فريقاً صالحاً لإسناد المهمة، أو اتركها بدون إسناد.");
       return;
     }
     let caseDetails;
@@ -2939,15 +2894,14 @@ function DemoWorkspace() {
     }
     setTasks((current) => current.map((item) => item.id === editingTask.id ? {
       ...item,
-      title: editTaskTitle.trim(),
       description: editTaskDescription.trim(),
       closedAt,
       ...caseDetails,
-      location: editTaskLocation.trim(),
-      governorates: editTaskGovernorates,
-      governorate: editTaskGovernorates[0],
-      teamId: team.id,
-      teamName: team.name,
+      location: caseDetails.region,
+      governorates: [getTaskGovernorateForRegion(caseDetails.region)],
+      governorate: getTaskGovernorateForRegion(caseDetails.region),
+      teamId: team?.id || null,
+      teamName: team?.name || null,
     } : item));
     setEditingTask(null);
     setModal("");
@@ -2975,7 +2929,6 @@ function DemoWorkspace() {
     }
     const team = { id: `crew-${Date.now()}`, name, availability: "ready", shift: newTeamShift };
     setTeams((current) => [...current, team]);
-    setTaskTeamId(team.id);
     setDemoTeamId(team.id);
     setNewTeamName("");
     setError("");
@@ -3053,7 +3006,7 @@ function DemoWorkspace() {
         onShowTasks={(status) => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(status); }}
         onSelect={(task) => { setSelectedId(task.id); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
         onLogout={() => { window.location.href = window.location.pathname; }}
-        onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }}
+        onCreateTask={() => { setError(""); setModal("task"); }}
         onCreateTeam={() => { setError(""); setCreatedTeamCredentials(null); setModal("team"); }}
         onManageTeams={() => { setError(""); setModal("teams"); }}
         onEditProfile={() => { setDemoProfileName(t(demoDisplayName)); setModal("profile"); }}
@@ -3085,7 +3038,7 @@ function DemoWorkspace() {
             onToggleTeamAvailability={toggleDemoTeamAvailability}
             selectedTask={selected}
             onOpenTask={(task) => { setSelectedId(task.id); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
-            onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }}
+            onCreateTask={() => { setError(""); setModal("task"); }}
             onManageTeams={() => { setError(""); setModal("teams"); }}
           />
         ) : selected ? (
@@ -3101,7 +3054,7 @@ function DemoWorkspace() {
             />
             <CaseDetails task={selected} />
           </div>
-        ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }} />}
+        ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setModal("task"); }} />}
         {error && <div className="global-error" role="alert">{t(error)}<button onClick={() => setError("")}>×</button></div>}
       </main>
 
@@ -3116,16 +3069,11 @@ function DemoWorkspace() {
       )}
 
       {modal === "task" && (
-        <Modal title={t("إنشاء مهمة جديدة")} subtitle={t("ستكون لهذه المهمة محادثة مستقلة تظهر للفريق.")} onClose={() => setModal("")}>
+        <Modal title={t("إنشاء مهمة جديدة")} subtitle={t("ستُنشأ المهمة بدون إسناد إلى فريق، ويمكنك اختيار الفريق لاحقاً من التعديل.")} onClose={() => setModal("")}>
           <form className="modal-form" onSubmit={createDemoTask}>
-            <label>{t("رقم المهمة")}<input value={taskNumber} onChange={(event) => setTaskNumber(event.target.value)} placeholder="FO-24018" required /></label>
-            <label>{t("اسم المهمة")}<input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} placeholder={t("مثال: فحص مسار الألياف - القطاع الشرقي")} required /></label>
-            <label>{t("اختر الفريق")}<select value={taskTeamId} onChange={(event) => setTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getDemoTeamShiftStatus(team))}</option>)}</select></label>
-            <GovernoratePicker values={taskGovernorates} onChange={setTaskGovernorates} />
-            <label>{t("المنطقة / الموقع")} <span className="optional">{t("(اختياري)")}</span><input value={taskLocation} onChange={(event) => setTaskLocation(event.target.value)} placeholder={t("مثال: القطاع الشرقي - غرفة التوزيع 4")} /></label>
             <CaseDetailsFields values={taskCaseDetails} onChange={(key, value) => setTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={taskDescription} onDescriptionChange={setTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
-            <button className="button button-primary full-width" type="submit">{t("إسناد المهمة للفريق")} <AppIcon name="arrowLeft" size={16} /></button>
+            <button className="button button-primary full-width" type="submit">{t("إنشاء المهمة")} <AppIcon name="arrowLeft" size={16} /></button>
           </form>
         </Modal>
       )}
@@ -3133,10 +3081,7 @@ function DemoWorkspace() {
       {modal === "editTask" && editingTask && (
         <Modal title={t("تعديل التكت")} subtitle={`${t("المهمة")} #${editingTask.taskNumber} · ${t("رقم المهمة لا يتغير للحفاظ على سجل المحادثة.")}`} onClose={() => { setModal(""); setEditingTask(null); }}>
           <form className="modal-form" onSubmit={saveDemoTaskChanges}>
-            <label>{t("اسم المهمة")}<input value={editTaskTitle} onChange={(event) => setEditTaskTitle(event.target.value)} maxLength="160" required /></label>
-            <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}</select></label>
-            <GovernoratePicker values={editTaskGovernorates} onChange={setEditTaskGovernorates} />
-            <label>{t("المنطقة / الموقع")}<input value={editTaskLocation} onChange={(event) => setEditTaskLocation(event.target.value)} maxLength="120" /></label>
+            <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)}><option value="">{t("غير مسند")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}</select></label>
             {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
             <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}

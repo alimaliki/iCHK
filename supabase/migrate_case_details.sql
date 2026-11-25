@@ -52,6 +52,10 @@ alter table public.tasks
   alter column gr_request set default 'no';
 
 alter table public.tasks
+  alter column team_id drop not null,
+  alter column team_name drop not null;
+
+alter table public.tasks
   drop constraint if exists tasks_status_check,
   add constraint tasks_status_check check (status in ('open', 'onHold', 'done')),
   drop constraint if exists tasks_case_details_check,
@@ -69,6 +73,19 @@ alter table public.tasks
     and gr_request in ('yes', 'no')
   );
 
+drop policy if exists "Supervisors create tasks" on public.tasks;
+create policy "Supervisors create tasks"
+on public.tasks for insert to authenticated
+with check (
+  public.is_supervisor()
+  and created_by = (select auth.uid())
+  and id = task_number
+  and (
+    (team_id is null and team_name is null)
+    or (team_id is not null and team_name = (select name from public.teams where id = team_id))
+  )
+);
+
 create or replace function public.guard_task_update()
 returns trigger
 language plpgsql
@@ -84,7 +101,7 @@ begin
     if new.id <> old.id or new.task_number <> old.task_number then
       raise exception 'Task identifiers cannot be changed';
     end if;
-    if new.team_name <> (select name from public.teams where id = new.team_id) then
+    if new.team_name is distinct from (select name from public.teams where id = new.team_id) then
       raise exception 'Task team name must match its assigned team';
     end if;
     if (to_jsonb(new) - array['status', 'archived', 'closed_at'])
