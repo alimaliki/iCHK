@@ -9,6 +9,9 @@ function respond(res, status, body) {
 
 function errorResponse(error) {
   const code = error?.code || "";
+  if (code === "team_name_exists") {
+    return { status: 409, body: { code: "functions/team-name-exists", error: "A team with that name already exists." } };
+  }
   if (code === "23505" || code === "email_exists" || code === "auth/email_exists") {
     return { status: 409, body: { code: "functions/already-exists", error: "That username is already taken." } };
   }
@@ -63,8 +66,10 @@ export default async function handler(req, res) {
   const { operation, ...input } = req.body || {};
   try {
     let result;
-    if (operation === "createTeamAccount") {
+    if (operation === "createTeam") {
       result = await createTeam(admin, userData.user.id, input);
+    } else if (operation === "createTeamAccount") {
+      result = await createTeamAccount(admin, userData.user.id, input);
     } else if (operation === "updateTeamAccount") {
       result = await updateTeam(admin, input);
     } else if (operation === "setTeamAvailability") {
@@ -83,7 +88,7 @@ export default async function handler(req, res) {
   }
 }
 
-async function createTeam(admin, supervisorId, input) {
+async function createTeamAccount(admin, supervisorId, input) {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const username = typeof input.username === "string" ? input.username.trim().toLowerCase() : "";
   const password = typeof input.password === "string" ? input.password : "";
@@ -145,12 +150,35 @@ async function createTeam(admin, supervisorId, input) {
   return { teamId, username };
 }
 
+async function createTeam(admin, supervisorId, input) {
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const shift = input.shift;
+  if (!name || name.length > 80 || !["morning", "evening", "night"].includes(shift)) {
+    const error = new Error("Provide a valid team name and shift.");
+    error.code = "functions/invalid-argument";
+    throw error;
+  }
+
+  await assertTeamNameAvailable(admin, name);
+
+  const { data, error } = await admin.from("teams").insert({
+    name,
+    username: null,
+    availability: "ready",
+    shift,
+    created_by: supervisorId,
+  }).select("id").single();
+  if (error) throw error;
+  return { teamId: data.id };
+}
+
 async function updateTeam(admin, input) {
-  const { teamId, name, password } = input;
+  const { teamId, name, password, shift } = input;
   const nextName = typeof name === "string" ? name.trim() : "";
   if (!isValidId(teamId) || !nextName || nextName.length > 80
+    || !["morning", "evening", "night"].includes(shift)
     || (password && (typeof password !== "string" || password.length < 8 || password.length > 128))) {
-    const error = new Error("Provide a valid team name and optional password.");
+    const error = new Error("Provide a valid team name, shift, and optional password.");
     error.code = "functions/invalid-argument";
     throw error;
   }
@@ -162,6 +190,7 @@ async function updateTeam(admin, input) {
     error.code = "PGRST116";
     throw error;
   }
+  await assertTeamNameAvailable(admin, nextName, teamId);
   if (team.account_uid) {
     const { error } = await admin.auth.admin.updateUserById(team.account_uid, {
       user_metadata: { display_name: nextName },
@@ -169,7 +198,11 @@ async function updateTeam(admin, input) {
     });
     if (error) throw error;
   }
-  const { error: updateTeamError } = await admin.from("teams").update({ name: nextName }).eq("id", teamId);
+  const { error: updateTeamError } = await admin.from("teams").update({
+    name: nextName,
+    shift,
+    updated_at: new Date().toISOString(),
+  }).eq("id", teamId);
   if (updateTeamError) throw updateTeamError;
   const { error: updateProfilesError } = await admin.from("profiles").update({ team_name: nextName }).eq("team_id", teamId);
   if (updateProfilesError) throw updateProfilesError;
@@ -178,14 +211,26 @@ async function updateTeam(admin, input) {
   return { updated: true };
 }
 
+async function assertTeamNameAvailable(admin, name, exceptTeamId) {
+  const { data: teams, error } = await admin.from("teams").select("id,name");
+  if (error) throw error;
+  if (teams.some((team) => team.id !== exceptTeamId
+    && team.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    const duplicate = new Error("A team with that name already exists.");
+    duplicate.code = "team_name_exists";
+    throw duplicate;
+  }
+}
+
 async function setAvailability(admin, input) {
-  if (!isValidId(input.teamId) || !["on-shift", "off-shift"].includes(input.availability)) {
+  if (!isValidId(input.teamId) || !["ready", "busy", "off-shift"].includes(input.availability)) {
     const error = new Error("A team ID and valid shift availability are required.");
     error.code = "functions/invalid-argument";
     throw error;
   }
   const { data, error } = await admin.from("teams")
-    .update({ availability: input.availability }).eq("id", input.teamId).select("id").maybeSingle();
+    .update({ availability: input.availability, updated_at: new Date().toISOString() })
+    .eq("id", input.teamId).select("id").maybeSingle();
   if (error) throw error;
   if (!data) {
     const missing = new Error("The team does not exist.");

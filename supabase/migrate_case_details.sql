@@ -1,7 +1,25 @@
 alter table public.teams
-  add column if not exists shift text not null default 'morning';
+  add column if not exists shift text not null default 'morning',
+  add column if not exists updated_at timestamptz not null default now();
 
 alter table public.teams
+  alter column username drop not null;
+
+alter table public.teams
+  drop constraint if exists teams_availability_check;
+
+update public.teams
+set availability = case
+  when availability = 'on-shift' then 'ready'
+  when availability in ('ready', 'busy', 'off-shift') then availability
+  else 'ready'
+end;
+
+alter table public.teams
+  alter column availability set default 'ready';
+
+alter table public.teams
+  add constraint teams_availability_check check (availability in ('ready', 'busy', 'off-shift')),
   drop constraint if exists teams_shift_check,
   add constraint teams_shift_check check (shift in ('morning', 'evening', 'night'));
 
@@ -120,3 +138,5 @@ begin
   raise exception 'Task update is not permitted';
 end;
 $$;
+
+notify pgrst, 'reload schema';

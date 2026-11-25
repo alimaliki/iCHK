@@ -14,12 +14,13 @@ create table public.profiles (
 create table public.teams (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(name) between 1 and 80),
-  username text not null unique check (username ~ '^[a-z0-9._-]{3,32}$'),
-  availability text not null default 'on-shift' check (availability in ('on-shift', 'off-shift')),
+  username text unique check (username ~ '^[a-z0-9._-]{3,32}$'),
+  availability text not null default 'ready' check (availability in ('ready', 'busy', 'off-shift')),
   shift text not null default 'morning' check (shift in ('morning', 'evening', 'night')),
   account_uid uuid unique references auth.users(id) on delete set null,
   created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 alter table public.profiles

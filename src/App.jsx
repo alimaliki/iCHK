@@ -956,7 +956,8 @@ function friendlyError(error) {
     "auth/wrong-password": "كلمة المرور الحالية غير صحيحة.",
     "functions/already-exists": "اسم المستخدم مستخدم بالفعل. اختر اسماً آخر.",
     "functions/permission-denied": "ليس لديك صلاحية لهذا الإجراء.",
-    "functions/invalid-argument": "تعذر إنشاء حساب الفريق.",
+    "functions/invalid-argument": "تحقق من بيانات الفريق وحاول مجدداً.",
+    "functions/team-name-exists": "يوجد فريق بهذا الاسم بالفعل.",
     "functions/internal": "تعذر إكمال العملية. تحقق من إعدادات Supabase ثم حاول مجدداً.",
     "functions/failed-precondition": "لا يمكن إكمال العملية قبل معالجة التكتات المرتبطة بالفريق.",
     "functions/not-found": "العنصر المطلوب غير موجود أو تم حذفه.",
@@ -2240,15 +2241,11 @@ function Workspace({ user, profile }) {
       if (teams.some((team) => team.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
         throw new Error("يوجد فريق بهذا الاسم بالفعل.");
       }
-      const teamId = `team-${crypto.randomUUID()}`;
-      await setDoc(doc(db, "teams", teamId), {
+      const { data: createdTeam } = await httpsCallable(functions, "createTeam")({
         name,
         shift: newTeamShift,
-        availability: "ready",
-        createdBy: user.uid,
-        createdAt: serverTimestamp(),
       });
-      setTaskTeamId(teamId);
+      setTaskTeamId(createdTeam.teamId);
       setNewTeamName("");
       setModal("");
     } catch (createError) {
@@ -2448,11 +2445,10 @@ function Workspace({ user, profile }) {
     event.preventDefault();
     if (!editingTeam || !editTeamName.trim()) return;
     try {
-      await setDoc(doc(db, "teams", editingTeam.id), {
-        ...editingTeam,
+      await httpsCallable(functions, "updateTeamAccount")({
+        teamId: editingTeam.id,
         name: editTeamName.trim(),
         shift: editTeamShift,
-        updatedAt: serverTimestamp(),
       });
       setModal("");
       setEditingTeam(null);
@@ -2463,10 +2459,9 @@ function Workspace({ user, profile }) {
 
   async function toggleTeamAvailability(team) {
     try {
-      await setDoc(doc(db, "teams", team.id), {
-        ...team,
+      await httpsCallable(functions, "setTeamAvailability")({
+        teamId: team.id,
         availability: getNextTeamAvailability(getTeamShiftStatus(team)),
-        updatedAt: serverTimestamp(),
       });
     } catch (availabilityError) {
       setError(friendlyError(availabilityError));
@@ -2548,23 +2543,11 @@ function Workspace({ user, profile }) {
   async function confirmDeleteTeam() {
     if (!deletingTeam) return;
     try {
-      if (teamDeleteMode === "reassign" && teamReassignId) {
-        await Promise.all(tasks
-          .filter((task) => task.teamId === deletingTeam.id)
-          .map((task) => setDoc(doc(db, "tasks", task.id), {
-            ...task,
-            teamId: teamReassignId,
-            teamName: teams.find((team) => team.id === teamReassignId)?.name || "",
-            updatedAt: serverTimestamp(),
-          })));
-      } else if (teamDeleteMode === "cascade") {
-        await Promise.all(tasks
-          .filter((task) => task.teamId === deletingTeam.id)
-          .map((task) => deleteDoc(doc(db, "tasks", task.id))));
-      } else if (tasks.some((task) => task.teamId === deletingTeam.id)) {
-        throw new Error("لا يمكن حذف الفريق لأن له مهام مرتبطة.");
-      }
-      await deleteDoc(doc(db, "teams", deletingTeam.id));
+      await httpsCallable(functions, "deleteTeamAccount")({
+        teamId: deletingTeam.id,
+        mode: teamDeleteMode,
+        ...(teamDeleteMode === "reassign" ? { targetTeamId: teamReassignId } : {}),
+      });
       setModal("");
       setDeletingTeam(null);
     } catch (deleteError) {
@@ -2797,7 +2780,7 @@ function DemoWorkspace() {
   const [demoDisplayName, setDemoDisplayName] = useState("مسؤول الشفت");
   const [demoProfileName, setDemoProfileName] = useState("");
   const [teams, setTeams] = useState([
-    { id: "east", name: "فريق الشرق", availability: "on-shift", shift: "morning" },
+    { id: "east", name: "فريق الشرق", availability: "ready", shift: "morning" },
     { id: "west", name: "فريق الغرب", availability: "off-shift", shift: "evening" },
   ]);
   const [demoMembers, setDemoMembers] = useState([
