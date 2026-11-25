@@ -321,6 +321,7 @@ with check (public.is_supervisor());
 
 grant select on public.profiles, public.teams, public.tasks, public.messages, public.members to authenticated;
 grant insert, update, delete on public.tasks, public.messages, public.members to authenticated;
+grant select, insert, update, delete on public.profiles, public.teams, public.tasks, public.messages, public.members to service_role;
 
 alter table public.profiles replica identity full;
 alter table public.teams replica identity full;

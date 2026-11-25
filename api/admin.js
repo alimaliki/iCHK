@@ -58,7 +58,15 @@ export default async function handler(req, res) {
     .select("role")
     .eq("id", userData.user.id)
     .maybeSingle();
-  if (profileError) return respond(res, 500, { error: "Could not verify supervisor permissions." });
+  if (profileError) {
+    console.error("Could not verify supervisor permissions.", {
+      code: profileError.code,
+      message: profileError.message,
+      details: profileError.details,
+      hint: profileError.hint,
+    });
+    return respond(res, 500, { error: "Could not verify supervisor permissions." });
+  }
   if (profile?.role !== "supervisor") {
     return respond(res, 403, { code: "functions/permission-denied", error: "Only shift supervisors can perform this action." });
   }

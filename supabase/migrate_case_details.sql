@@ -139,4 +139,6 @@ begin
 end;
 $$;
 
+grant select, insert, update, delete on public.profiles, public.teams, public.tasks, public.messages, public.members to service_role;
+
 notify pgrst, 'reload schema';
