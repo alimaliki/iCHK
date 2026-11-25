@@ -28,6 +28,20 @@ import { auth, db, functions, isSupabaseConfigured } from "./supabase";
 import { iraqGovernorates, iraqMapViewBox } from "./iraqGovernorates";
 
 const SettingsContext = createContext(null);
+const TASK_SLA_MS = 4 * 60 * 60 * 1000;
+const EMPTY_CASE_DETAILS = {
+  src: "",
+  fmsId: "",
+  department: "",
+  region: "",
+  fdt: "",
+  efu: "0",
+  maintenance: "",
+  caseStatus: "",
+  escalation: "",
+  grRequest: "no",
+  caseCreatedAt: "",
+};
 const english = {
   "iCHK": "iCHK",
   "متابعة المهام": "Task operations",
@@ -38,8 +52,55 @@ const english = {
   "لوحة التحكم": "Dashboard",
   "الخريطة": "Map",
   "أعضاء الفرق": "Team members",
+  "الفرق": "Teams",
+  "الأعضاء": "Members",
+  "الشفت": "Shift",
+  "الشفتات": "Shifts",
+  "كل الشفتات": "All shifts",
+  "الصباحي": "Morning",
+  "المسائي": "Evening",
+  "الفجري": "Night",
+  "الشفت الصباحي": "Morning shift",
+  "الشفت المسائي": "Evening shift",
+  "الشفت الفجري": "Night shift",
+  "فرق": "teams",
+  "لا توجد فرق في هذا الشفت.": "No teams are assigned to this shift.",
+  "فرق الشفت": "Shift teams",
+  "بيانات الكيس": "Case details",
+  "رقم SRC": "SRC",
+  "معرّف FMS": "FMS ID",
+  "القسم": "Department",
+  "المنطقة": "Region",
+  "FDT": "FDT",
+  "EFU": "EFU",
+  "الصيانة": "Maintenance",
+  "حالة الكيس": "Case status",
+  "التصعيد": "Escalation",
+  "طلب GR": "GR Request",
+  "تاريخ إنشاء الكيس": "Created at",
+  "فتح FMS": "Open FMS",
+  "فتح مهمة FMS": "Open FMS Task",
+  "الوقت المنقضي": "ELAPSED",
+  "الوقت المتبقي": "REMAINING",
+  "الوقت عند الإغلاق": "ELAPSED AT CLOSE",
+  "المتبقي عند الإغلاق": "REMAINING AT CLOSE",
+  "وقت إغلاق المهمة": "Task close time",
+  "تاريخ إغلاق المهمة": "CLOSED",
+  "غير متوفر": "NOT AVAILABLE",
+  "وقت الإغلاق غير مسجل": "CLOSE TIME NOT RECORDED",
+  "حدد وقت إغلاق صالحاً.": "Set a valid close time.",
+  "تجاوز SLA": "OVER SLA",
+  "الوقت المنقضي حتى تجاوز SLA": "Elapsed time until SLA is exceeded",
+  "تاريخ إضافة المهمة": "CREATED",
+  "الوصف": "Description",
+  "نعم": "Yes",
+  "لا": "No",
+  "غير محدد": "Not specified",
+  "رابط FMS يجب أن يبدأ بـ https://.": "The FMS link must start with https://.",
   "معلومات الأعضاء مستقلة عن حسابات الدخول.": "Member details are separate from sign-in accounts.",
   "إضافة عضو": "Add member",
+  "إضافة فريق": "Add team",
+  "لا توجد فرق متاحة بعد.": "No teams available yet.",
   "الاسم الكامل": "Full name",
   "رقم الهاتف": "Phone number",
   "الاختصاص أو المسؤولية": "Role or responsibility",
@@ -48,8 +109,16 @@ const english = {
   "معلومات تعريفية فقط، لا تنشئ حساب دخول.": "Reference information only; this does not create a sign-in account.",
   "كل الفرق": "All teams",
   "أعضاء": "members",
+  "المهام": "Tasks",
   "لا يوجد أعضاء لهذا الفريق بعد.": "This team has no members yet.",
   "لا توجد فرق متاحة. أضف فريقاً أولاً ثم سجّل أعضاءه.": "No teams available. Create a team first, then add its members.",
+  "بدون معرّف": "No ID",
+  "لا يوجد رقم": "No phone number",
+  "إجراءات العضو": "Member actions",
+  "جميع الأعضاء": "All members",
+  "اسم المستخدم": "Username",
+  "لا يوجد أعضاء بعد.": "No members yet.",
+  "لا توجد مهام بهذه الحالة.": "No tasks in this status.",
   "اختر فريقاً": "Select a team",
   "حفظ العضو": "Save member",
   "تعديل بيانات العضو": "Edit member details",
@@ -100,6 +169,9 @@ const english = {
   "حدد محافظة واحدة أو أكثر للمهمة لتمييزها على الخريطة.": "Select one or more governorates for the task to highlight them on the map.",
   "بغداد - غرفة التوزيع 4": "Baghdad — Distribution room 4",
   "البصرة - موقع 12": "Basrah — Site 12",
+  "ذي قار - غرفة التوزيع 4": "Dhi Qar — Distribution room 4",
+  "غرفة التوزيع 4": "Distribution room 4",
+  "موقع 12": "Site 12",
   "الموقع غير محدد": "Location not specified",
   "لا توجد مهام نشطة حالياً.": "No active tasks right now.",
   "إجراءات سريعة": "Quick actions",
@@ -119,11 +191,11 @@ const english = {
   "تسجيل الخروج": "Sign out",
   "المهمة": "Task",
   "مكتملة": "Completed",
-  "قيد التنفيذ": "In progress",
+  "قيد التنفيذ": "In Progress",
+  "معلّقة": "On Hold",
+  "إيقاف المهمة مؤقتاً": "Put on hold",
+  "استئناف المهمة": "Resume task",
   "المهام النشطة": "Active tasks",
-  "الأرشيف": "Archive",
-  "أرشفة المهمة": "Archive task",
-  "استعادة من الأرشيف": "Restore from archive",
   "لا توجد مهام نشطة.": "No active tasks.",
   "الإعدادات": "Settings",
   "إدارة إعدادات مساحة العمل والمظهر.": "Manage workspace and appearance settings.",
@@ -136,11 +208,16 @@ const english = {
   "كلمة المرور الحالية": "Current password",
   "كلمة مرور جديدة": "New password",
   "متاح بالمناوبة": "Available this shift",
+  "جاهز": "Ready",
   "خارج المناوبة": "Off shift",
   "مشغول": "Busy",
   "مهام مفتوحة": "open tasks",
   "إخراج الفريق من المناوبة": "Set team off shift",
   "إضافة الفريق إلى المناوبة": "Set team on shift",
+  "تغيير إلى مشغول": "Set to Busy",
+  "إنهاء فترة العمل": "End shift",
+  "تغيير إلى جاهز": "Set to Ready",
+  "تغيير حالة الفريق": "Change team availability",
   "تم حفظ التغييرات.": "Changes saved.",
   "تم إرسال رابط تأكيد البريد الإلكتروني إلى العنوان الجديد.": "A confirmation link was sent to the new email address.",
   "أدخل كلمة المرور الحالية لتغيير البريد أو كلمة المرور.": "Enter your current password to change your email or password.",
@@ -149,6 +226,7 @@ const english = {
   "عرض الفرق وحالة مناوبتها وإدارتها.": "View teams, their shift availability, and manage them.",
   "في المعاينة، يتم حفظ الاسم محلياً فقط.": "In preview mode, the name is saved locally only.",
   "لا يوجد وصف إضافي لهذه المهمة.": "No additional details for this task.",
+  "مسؤول الشفت": "Shift supervisor",
   "إنهاء المهمة": "Complete task",
   "إعادة فتح المهمة": "Reopen task",
   "رقم المهمة": "Task number",
@@ -231,23 +309,6 @@ const english = {
   "إدارة الفرق": "Manage crews",
   "إنشاء فريق": "Create crew",
   "اسم الفريق": "Crew name",
-  "اسم المستخدم": "Username",
-  "كلمة مرور الفريق": "Crew password",
-  "حسابات الفرق ينشئها مسؤول الشفت فقط": "Team accounts are created by the shift supervisor",
-  "اسم المستخدم أو البريد الإلكتروني": "Team username or supervisor email",
-  "استخدم اسم المستخدم وكلمة المرور الخاصة بفريقك، أو بريد مسؤول الشفت.": "Sign in with your crew username and password, or the shift supervisor email.",
-  "اسم المستخدم غير صالح.": "Username is invalid.",
-  "كلمة المرور يجب أن تكون 8 أحرف على الأقل.": "Password must contain at least 8 characters.",
-  "الحساب جاهز للفريق": "Team account is ready",
-  "احفظ بيانات الدخول الآن. لن يتم حفظ كلمة المرور في قاعدة البيانات.": "Save these credentials now. The password is not stored in the database.",
-  "نسخ بيانات الدخول": "Copy login credentials",
-  "إنشاء حساب فريق": "Create team account",
-  "أدخل اسم مستخدم فريداً وكلمة مرور للحساب المشترك للفريق.": "Choose a unique username and password for the shared crew account.",
-  "الحسابات المشتركة تعني أن أعضاء الفريق يستخدمون نفس بيانات الدخول.": "All crew members use the same shared sign-in credentials.",
-  "اسم المستخدم مستخدم بالفعل. اختر اسماً آخر.": "That username is already taken. Choose another.",
-  "تعذر إنشاء حساب الفريق.": "Could not create the team account.",
-  "تعذر إنشاء حساب الفريق. تحقق من صلاحيات مسؤول الشفت ثم حاول مجدداً.": "Could not create the team account. Check supervisor permissions and try again.",
-  "اسم المستخدم يجب أن يتكون من 3 إلى 32 حرفاً إنجليزياً أو رقماً.": "Username must be 3–32 English letters, numbers, dots, hyphens, or underscores.",
   "أدخل اسم الفريق.": "Enter a crew name.",
   "تم اعتماد فحص هذه المهمة.": "The check for this task has been confirmed.",
   "طلب الفريق مراجعة هذه المهمة من مسؤول الشفت.": "The crew has requested a review from the shift supervisor.",
@@ -289,16 +350,23 @@ const english = {
   "أضف بيانات مشروع Supabase لتفعيل تسجيل الدخول والمحادثات الفورية بين الأجهزة.": "Add your Supabase project settings to enable sign-in and live messaging across devices.",
   "أنشئ مشروعاً في Supabase وفعّل Email/Password من Authentication.": "Create a Supabase project and enable Email/Password in Authentication.",
   "انسخ إعدادات تطبيق الويب إلى ملف": "Copy your web app settings into",
+  "شغّل": "Run",
+  "بعد تطبيق": "after applying",
   "انشر قواعد": "Deploy",
   "ثم شغّل": "then run",
   "معاينة الواجهات الآن": "Preview the interfaces",
   "راجع README.md لخطوات إعداد المشرف الأول بالتفصيل.": "See README.md for the first supervisor setup steps.",
   "فريق الميدان والمتابعة على تواصل.": "Field crews and supervisors, in sync.",
+  "إدارة الميدان والتشكيل من مكان واحد.": "Manage field operations and crew assignments in one place.",
+  "تابع الفرق والمهام وحالة المناوبة من لوحة مسؤول الشفت.": "Track crews, tasks, and shift availability from the supervisor dashboard.",
+  "استخدم بريد مسؤول الشفت وكلمة المرور للدخول إلى لوحة الإدارة.": "Sign in to the management dashboard with your supervisor email and password.",
+  "الوصول مقتصر على مسؤول الشفت": "Access is restricted to shift supervisors.",
   "محادثة واضحة مرتبطة بالمهمة نفسها، من أول خطوة إلى إنجازها.": "One clear conversation for each work order, from dispatch to completion.",
   "مساحة عملك آمنة وخاصة بفريقك": "A secure workspace for your crews",
   "أهلاً بعودتك": "Welcome back",
   "انضم إلى الفريق": "Join your crew",
   "تسجيل الدخول": "Sign in",
+  "جارٍ تجهيز مساحة العمل...": "Preparing your workspace...",
   "إنشاء حساب الفريق": "Create crew account",
   "سجّل دخولك لمتابعة مهام فريقك.": "Sign in to see your crew's assignments.",
   "تحتاج إلى دعوة صالحة من المتابع لإنشاء الحساب.": "A valid supervisor invitation is required to create an account.",
@@ -327,6 +395,11 @@ const english = {
   "أنشئ فريقاً ميدانياً أولاً، ثم أسند له المهام وادعُ أعضاءه.": "Create a field crew first, then assign work and invite its members.",
   "تنظيم الفرق الميدانية التي تستقبل أوامر العمل.": "Manage the crews that receive fiber work orders.",
   "لا توجد فرق مضافة بعد.": "No crews have been added yet.",
+  "أضف فريقاً إلى التشكيل المنشود؛ لا يتطلب إنشاء حساب دخول.": "Add a crew to the roster; no sign-in account is required.",
+  "يتم إدارة أعضاء الفريق من صفحة أعضاء الفرق دون بيانات دخول.": "Manage crew members on the Team Members page; no sign-in credentials are required.",
+  "تحديث اسم الفريق في التشكيل.": "Update the crew name on the roster.",
+  "أضف فريقاً إلى التشكيل؛ لا يتطلب إنشاء حساب دخول.": "Add a crew to the roster; no sign-in account is required.",
+  "يتم تسجيل أعضاء الفريق وبياناتهم من صفحة أعضاء الفرق.": "Manage crew member details on the Team Members page.",
   "يوجد فريق بهذا الاسم بالفعل.": "A crew with this name already exists.",
   "اختر الفريق الذي سيتولى المهمة.": "Choose which crew will handle this work order.",
   "أدخل رقم المهمة واسمها.": "Enter a work order number and title.",
@@ -366,6 +439,7 @@ const iconArtwork = {
   archive: <><path d="M3 4h18v4H3z" /><path d="M5 8v12h14V8M10 12h4" /></>,
   task: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3" /></>,
   plus: <><path d="M12 5v14M5 12h14" /></>,
+  user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21v-2a7 7 0 0 1 14 0v2" /></>,
   users: <><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20" /><circle cx="9.5" cy="7.5" r="3.5" /><path d="M17 11a3.5 3.5 0 0 0 0-7M17 14.5h.5a4 4 0 0 1 3.5 3.5V20" /></>,
   userPlus: <><circle cx="9" cy="8" r="3.5" /><path d="M3 20v-1a6 6 0 0 1 12 0v1M19 8v6M16 11h6" /></>,
   settings: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v2M12 19.5v2M4.7 4.7l1.4 1.4M17.9 17.9l1.4 1.4M2.5 12h2M19.5 12h2M4.7 19.3l1.4-1.4M17.9 6.1l1.4-1.4" /><circle cx="12" cy="12" r="7" /></>,
@@ -421,7 +495,7 @@ const governorateAliases = {
   BG: ["بغداد", "baghdad"],
   QA: ["القادسية", "الديوانية", "al qadisiyah", "qadisiyah", "diwaniyah"],
   MU: ["المثنى", "السماوة", "al muthanna", "muthanna", "samawah"],
-  DQ: ["ذي قار", "الناصرية", "dhi qar", "thi qar", "nasiriyah"],
+  DQ: ["ذي قار", "الناصرية", "dhi qar", "thi qar", "nasiriyah", "nasria"],
   BS: ["البصرة", "basrah", "basra"],
   MY: ["ميسان", "العمارة", "maysan", "amarah"],
   WA: ["واسط", "الكوت", "wasit", "kut"],
@@ -456,6 +530,9 @@ function isValidGovernorateSelection(codes) {
 
 function getTaskGovernorateCodes(task) {
   if (!task) return [];
+  const regionCode = getGovernorateCodeFromRegion(task.region);
+  if (regionCode) return [regionCode];
+
   if (Object.prototype.hasOwnProperty.call(task, "governorates")) {
     if (!Array.isArray(task.governorates) || task.governorates.some((code) => !governorateCodeSet.has(code))) return [];
     return [...new Set(task.governorates)];
@@ -477,14 +554,60 @@ function getTaskGovernorateCodes(task) {
   return matches.length === 1 ? [matches[0].code] : [];
 }
 
+function getGovernorateCodeFromRegion(region) {
+  const normalized = normalizeGovernorateText(region);
+  if (!normalized) return "";
+  return Object.entries(governorateAliases).find(([, aliases]) =>
+    aliases.some((alias) => normalizeGovernorateText(alias) === normalized))?.[0] || "";
+}
+
+function getTaskLocationLabel(task, language) {
+  const regionCode = getGovernorateCodeFromRegion(task.region);
+  if (!regionCode) return task.location || "";
+
+  const regionName = getGovernorateName(regionCode, language);
+  const locationParts = String(task.location || "").trim().split(/\s*[—–-]\s*/);
+  const locationCode = getGovernorateCodeFromRegion(locationParts[0]);
+  const siteDetails = locationCode ? locationParts.slice(1).join(" — ") : locationParts.join(" — ");
+  const localizedSiteDetails = language === "en"
+    ? siteDetails.split(" — ").map((part) => english[part] || part).join(" — ")
+    : siteDetails;
+  return siteDetails ? `${regionName} — ${localizedSiteDetails}` : regionName;
+}
+
 function getTaskGovernorateCodesForTasks(tasks) {
-  return [...new Set(tasks.filter((task) => !task.archived && task.status !== "done").flatMap(getTaskGovernorateCodes))];
+  return [...new Set(tasks.filter((task) => task.status === "open").flatMap(getTaskGovernorateCodes))];
 }
 
 function getGovernorateName(code, language) {
   const governorate = iraqGovernorates.find((item) => item.code === code);
   if (!governorate) return "";
   return language === "en" ? governorate.name : governorateNamesArabic[governorate.name] || governorate.name;
+}
+
+function getLocalizedRegion(region, language) {
+  const code = getGovernorateCodeFromRegion(region);
+  if (!code) return region;
+  return code === "DQ"
+    ? language === "en" ? "Dhi Qar" : "ذي قار"
+    : getGovernorateName(code, language);
+}
+
+function getLocalizedCaseValue(value, language) {
+  const caseValuesArabic = {
+    Support: "الدعم",
+    "Last Mile": "الميل الأخير",
+    Open: "مفتوح",
+  };
+  return language === "en" ? english[value] || value : caseValuesArabic[value] || value;
+}
+
+function formatDuration(milliseconds) {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
 function GovernoratePicker({ values, onChange }) {
@@ -575,7 +698,7 @@ function IraqGovernorateMap({ highlightedCodes = [], className = "", selectedCod
 function AppIcon({ name, size = 18, className = "" }) {
   return (
     <svg
-      className={`app-icon ${className}`.trim()}
+      className={`app-icon ${name === "arrowLeft" ? "app-icon-arrow-left" : ""} ${className}`.trim()}
       width={size}
       height={size}
       viewBox="0 0 24 24"
@@ -610,8 +733,88 @@ function formatDate(timestamp, language = "ar") {
   );
 }
 
+function getDateValue(value) {
+  if (value?.toDate) return value.toDate();
+  if (value instanceof Date) return value;
+  return value ? new Date(value) : null;
+}
+
+function formatCaseCreatedAt(value, language) {
+  const date = getDateValue(value);
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(language === "en" ? "en" : "ar", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function toDateTimeInput(value) {
+  const date = getDateValue(value);
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function normalizeTaskClosedAt(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) throw new Error("حدد وقت إغلاق صالحاً.");
+  return date.toISOString();
+}
+
+function getSafeFmsUrl(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function getTaskCaseFormValues(task) {
+  return {
+    ...EMPTY_CASE_DETAILS,
+    src: task.src || "",
+    fmsId: task.fmsId || "",
+    department: task.department || "",
+    region: task.region || "",
+    fdt: task.fdt || "",
+    efu: task.efu || "0",
+    maintenance: task.maintenance || "",
+    caseStatus: task.caseStatus || "",
+    escalation: task.escalation || "",
+    grRequest: task.grRequest || "no",
+    caseCreatedAt: toDateTimeInput(task.caseCreatedAt),
+  };
+}
+
+function normalizeTaskCaseDetails(values) {
+  const createdAt = values.caseCreatedAt ? new Date(values.caseCreatedAt) : null;
+  const fmsId = values.fmsId.trim();
+  if (fmsId && !getSafeFmsUrl(fmsId)) {
+    throw new Error("رابط FMS يجب أن يبدأ بـ https://.");
+  }
+  return {
+    src: values.src.trim(),
+    fmsId: fmsId ? getSafeFmsUrl(fmsId) : "",
+    department: values.department.trim(),
+    region: values.region.trim(),
+    fdt: values.fdt.trim(),
+    efu: values.efu.trim(),
+    maintenance: values.maintenance.trim(),
+    caseStatus: values.caseStatus.trim(),
+    escalation: values.escalation.trim(),
+    grRequest: values.grRequest,
+    caseCreatedAt: createdAt && !Number.isNaN(createdAt.getTime()) ? createdAt.toISOString() : null,
+  };
+}
+
 function ConfigNotice() {
   const t = useCopy();
+  const { language } = usePreferences();
+  const stepNumbers = language === "en" ? ["1", "2", "3"] : ["١", "٢", "٣"];
   return (
     <main className="setup-screen">
       <div className="setup-card">
@@ -623,9 +826,9 @@ function ConfigNotice() {
           {t("أضف بيانات مشروع Supabase لتفعيل تسجيل الدخول والمحادثات الفورية بين الأجهزة.")}
         </p>
         <div className="setup-steps">
-          <span>١</span><p>{t("أنشئ مشروعاً في Supabase وفعّل Email/Password من Authentication.")}</p>
-          <span>٢</span><p>{t("انسخ إعدادات تطبيق الويب إلى ملف")} <code>.env</code>.</p>
-          <span>٣</span><p>{t("شغّل")} <code>npm run dev</code> {t("بعد تطبيق")} <code>supabase/schema.sql</code>.</p>
+          <span>{stepNumbers[0]}</span><p>{t("أنشئ مشروعاً في Supabase وفعّل Email/Password من Authentication.")}</p>
+          <span>{stepNumbers[1]}</span><p>{t("انسخ إعدادات تطبيق الويب إلى ملف")} <code>.env</code>.</p>
+          <span>{stepNumbers[2]}</span><p>{t("شغّل")} <code>npm run dev</code> {t("بعد تطبيق")} <code>supabase/schema.sql</code>.</p>
         </div>
         <a className="button button-primary full-width setup-preview" href="?demo=1">{t("معاينة الواجهات الآن")} <AppIcon name="arrowLeft" size={16} /></a>
         <p className="setup-foot">{t("راجع README.md لخطوات إعداد المشرف الأول بالتفصيل.")}</p>
@@ -649,11 +852,9 @@ function AuthScreen() {
       const loginName = identifier.trim().toLowerCase();
       const loginEmail = loginName === "alimaliki"
         ? "alimaliki@earthlink.iq"
-        : loginName === "operations-team"
-          ? "opt@earthlink.iq"
         : loginName.includes("@")
           ? loginName
-          : `${normalizeUsername(loginName)}@teams.wasla.invalid`;
+          : `${normalizeUsername(loginName)}@supervisor.wasla.invalid`;
       await signInWithEmailAndPassword(auth, loginEmail, password);
     } catch (submitError) {
       setError(submitError.message === "اسم المستخدم غير صالح."
@@ -670,8 +871,8 @@ function AuthScreen() {
         <div className="brand brand-light"><img className="brand-logo" src="/ichk-wordmark.png" alt="iCHK" /></div>
         <div className="aside-copy">
           <span className="aside-kicker">{t("مركز تشغيل الشبكة")}</span>
-          <h1>{t("فريق الميدان والمتابعة على تواصل.")}</h1>
-          <p>{t("محادثة واضحة مرتبطة بالمهمة نفسها، من أول خطوة إلى إنجازها.")}</p>
+          <h1>{t("إدارة الميدان والتشكيل من مكان واحد.")}</h1>
+          <p>{t("تابع الفرق والمهام وحالة المناوبة من لوحة مسؤول الشفت.")}</p>
         </div>
         <div className="aside-note"><span className="online-dot" /> {t("مساحة عملك آمنة وخاصة بفريقك")}</div>
       </section>
@@ -681,11 +882,11 @@ function AuthScreen() {
           <div className="brand"><img className="brand-logo" src="/ichk-wordmark.png" alt="iCHK" /></div>
           <p className="eyebrow">{t("مركز تشغيل الشبكة")}</p>
           <h2>{t("تسجيل الدخول")}</h2>
-          <p className="muted">{t("استخدم اسم المستخدم وكلمة المرور الخاصة بفريقك، أو بريد مسؤول الشفت.")}</p>
+          <p className="muted">{t("استخدم بريد مسؤول الشفت وكلمة المرور للدخول إلى لوحة الإدارة.")}</p>
           <form onSubmit={submit} className="auth-form">
             <label>
-              {t("اسم المستخدم أو البريد الإلكتروني")}
-              <input type="text" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="north-crew أو supervisor@company.com" autoComplete="username" required />
+              {t("البريد الإلكتروني")}
+              <input type="text" value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="supervisor@company.com" autoComplete="username" required />
             </label>
             <label>
               {t("كلمة المرور")}
@@ -697,7 +898,7 @@ function AuthScreen() {
               {!busy && <AppIcon name="arrowLeft" size={16} />}
             </button>
           </form>
-          <div className="auth-security"><span><AppIcon name="shield" size={16} /></span> {t("حسابات الفرق ينشئها مسؤول الشفت فقط")}</div>
+          <div className="auth-security"><span><AppIcon name="shield" size={16} /></span> {t("الوصول مقتصر على مسؤول الشفت")}</div>
         </div>
       </section>
     </main>
@@ -708,6 +909,18 @@ function normalizeUsername(value) {
   const username = value.trim().toLowerCase();
   if (!/^[a-z0-9._-]{3,32}$/.test(username)) throw new Error("اسم المستخدم غير صالح.");
   return username;
+}
+
+function getNextTeamAvailability(status) {
+  if (status === "جاهز") return "busy";
+  if (status === "مشغول") return "off-shift";
+  return "ready";
+}
+
+function getNextTeamAvailabilityLabel(status) {
+  if (status === "جاهز") return "تغيير إلى مشغول";
+  if (status === "مشغول") return "إنهاء فترة العمل";
+  return "تغيير إلى جاهز";
 }
 
 function PreferencesBar({ compact = false }) {
@@ -751,19 +964,18 @@ function friendlyError(error) {
   return messages[error.code] || error.message || "تعذر إكمال العملية. حاول مرة أخرى.";
 }
 
-function Sidebar({ role, email, displayName, teamName, selected, tasks, showDashboard, showMap, showMembers, onShowDashboard, onShowMap, onShowMembers, onSelect, onLogout, onCreateTask, onCreateTeam, onManageTeams, onEditProfile, pendingCheckTasks = [], notificationsEnabled, onEnableNotifications, onOpenTask, demoTeams, demoTeamId, onDemoTeamChange, onDemoRoleChange }) {
+function Sidebar({ role, email, displayName, teamName, selected, tasks, showDashboard, showMap, showTeams, showMembers, showTasks, onShowDashboard, onShowMap, onShowTeams, onShowMembers, onShowTasks, onSelect, onLogout, onCreateTask, onCreateTeam, onManageTeams, onEditProfile, pendingCheckTasks = [], notificationsEnabled, onEnableNotifications, onOpenTask, demoTeams, demoTeamId, onDemoTeamChange, onDemoRoleChange }) {
   const t = useCopy();
-  const [tasksOpen, setTasksOpen] = useState(true);
-  const [archiveView, setArchiveView] = useState(false);
+  const { language } = usePreferences();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
   const [checkMenuOpen, setCheckMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [resizedWidth, setResizedWidth] = useState(null);
   const dragStateRef = useRef(null);
   const isSupervisor = role === "supervisor";
-  const visibleTasks = tasks.filter((task) => Boolean(task.archived) === archiveView);
-  useEffect(() => setArchiveView(Boolean(selected?.archived)), [selected?.archived]);
+  const visibleTasks = tasks;
   function startResize(event) {
     if (window.innerWidth <= 620) return;
     dragStateRef.current = { startX: event.clientX, width: resizedWidth || (collapsed ? 78 : 286), moved: false };
@@ -838,49 +1050,60 @@ function Sidebar({ role, email, displayName, teamName, selected, tasks, showDash
           <span>{t("الخريطة")}</span>
         </button>
         {isSupervisor && <button
+          className={`dashboard-nav-link ${showTeams ? "active" : ""}`}
+          title={t("الفرق")}
+          onClick={() => { onShowTeams?.(); setMobileOpen(false); }}
+        >
+          <AppIcon name="list" size={18} />
+          <span>{t("الفرق")}</span>
+        </button>}
+        {isSupervisor && <button
           className={`dashboard-nav-link ${showMembers ? "active" : ""}`}
-          title={t("أعضاء الفرق")}
+          title={t("الأعضاء")}
           onClick={() => { onShowMembers?.(); setMobileOpen(false); }}
         >
-          <AppIcon name="users" size={18} />
-          <span>{t("أعضاء الفرق")}</span>
+          <AppIcon name="user" size={18} />
+          <span>{t("الأعضاء")}</span>
         </button>}
-        <button className="section-heading" title={t(isSupervisor ? "لوحة المتابعة" : "مهامي")} onClick={() => setTasksOpen((open) => !open)} aria-expanded={tasksOpen}>
-          <span>{t(isSupervisor ? "لوحة المتابعة" : "مهامي")}</span>
-          <span className="section-heading-end"><span className="task-count">{visibleTasks.length}</span></span>
-        </button>
-        <div className="task-nav" hidden={!tasksOpen}>
-          <div className="task-view-tabs">
-            <button className={!archiveView ? "active" : ""} title={t("المهام النشطة")} onClick={() => setArchiveView(false)}><AppIcon name="list" size={16} />{t("المهام النشطة")}</button>
-            <button className={archiveView ? "active" : ""} title={t("الأرشيف")} onClick={() => setArchiveView(true)}><AppIcon name="archive" size={16} />{t("الأرشيف")}</button>
-          </div>
-          {visibleTasks.length === 0 && (
-            <div className="empty-sidebar">
-              <div className="empty-icon"><AppIcon name="task" size={20} /></div>
-              <p>{t(archiveView ? "لا توجد مهام بعد" : (isSupervisor ? "ابدأ بإضافة أول مهمة للفريق." : "لا توجد مهام نشطة."))}</p>
-            </div>
-          )}
-          {visibleTasks.map((task) => (
-            <button key={task.id} className={`task-link ${selected?.id === task.id ? "active" : ""}`} title={`${task.taskNumber} · ${t(task.title)}`} onClick={() => { onSelect(task); setMobileOpen(false); }}>
-              <span className="task-link-icon"><AppIcon name="task" size={17} /></span>
-              <span className="task-link-copy"><strong>{task.taskNumber}</strong><small>{t(task.title)}</small><em>{t(task.teamName || teamName || "فريق الميدان")}</em></span>
-              <span className={`status-dot ${task.status === "done" ? "done" : ""} ${task.checkStatus === "requested" ? "check-request" : ""}`} />
+        {isSupervisor && <div className="sidebar-two-level">
+          <button
+            className={`dashboard-nav-link tasks-level-trigger ${showTasks ? "active" : ""}`}
+            title={t("المهام")}
+            onClick={() => setTasksOpen((open) => !open)}
+            aria-expanded={tasksOpen}
+          >
+            <AppIcon name="task" size={18} />
+            <span>{t("المهام")}</span>
+            <AppIcon className="tasks-level-chevron" name={tasksOpen ? "chevronDown" : "chevronRight"} size={14} />
+          </button>
+          {tasksOpen && <div className="tasks-two-level">
+            <button className={showTasks === "progress" ? "active" : ""} onClick={() => { onShowTasks?.("progress"); setMobileOpen(false); }}>
+              <i className="task-level-dot progress" /><span>{t("قيد التنفيذ")}</span>
             </button>
-          ))}
-        </div>
-        {isSupervisor && (
-          <>
-            <button className="new-task-link" title={t("مهمة جديدة")} onClick={onCreateTask}><span><AppIcon name="plus" size={18} /></span> {t("مهمة جديدة")}</button>
-            <button className="new-task-link manage-teams-link" title={t("إدارة الفرق")} onClick={onManageTeams}><span><AppIcon name="users" size={18} /></span> {t("إدارة الفرق")}</button>
-          </>
-        )}
+            <button className={showTasks === "onHold" ? "active" : ""} onClick={() => { onShowTasks?.("onHold"); setMobileOpen(false); }}>
+              <i className="task-level-dot hold" /><span>{t("معلّقة")}</span>
+            </button>
+            <button className={showTasks === "completed" ? "active" : ""} onClick={() => { onShowTasks?.("completed"); setMobileOpen(false); }}>
+              <i className="task-level-dot completed" /><span>{t("مكتملة")}</span>
+            </button>
+          </div>}
+        </div>}
+        {isSupervisor && <button
+          className="new-task-link"
+          title={t("مهمة جديدة")}
+          aria-label={t("مهمة جديدة")}
+          onClick={() => { onCreateTask?.(); setMobileOpen(false); }}
+        >
+          <AppIcon name="plus" size={18} />
+          {t("مهمة جديدة")}
+        </button>}
       </div>
       <div className="sidebar-bottom">
         <button className="settings-entry" title={t("الإعدادات")} onClick={() => setSettingsOpen(true)}>
           <AppIcon name="settings" size={17} /><span>{t("الإعدادات")}</span>
         </button>
         <div className="profile-row">
-          <div className="avatar">{(displayName || email)?.[0]?.toUpperCase() || "م"}</div>
+          <div className="avatar">{(displayName || email)?.[0]?.toUpperCase() || (language === "en" ? "U" : "م")}</div>
           <div className="profile-copy"><strong>{isSupervisor ? (displayName || t("المتابع")) : t("عضو الفريق")}</strong><small>{isSupervisor ? email : teamName ? t(teamName) : email}</small></div>
           {isSupervisor && onEditProfile && <button className="profile-edit-button" onClick={onEditProfile} aria-label={t("الملف الشخصي")} title={t("الملف الشخصي")}><AppIcon name="settings" size={17} /></button>}
           <button className="logout-button" onClick={onLogout} aria-label={t("تسجيل الخروج")} title={t("تسجيل الخروج")}><AppIcon name="logout" size={17} /></button>
@@ -889,25 +1112,14 @@ function Sidebar({ role, email, displayName, teamName, selected, tasks, showDash
     </aside>
     {settingsOpen && <Modal title={t("الإعدادات")} subtitle={t("إدارة إعدادات مساحة العمل والمظهر.")} onClose={() => { setSettingsOpen(false); setCheckMenuOpen(false); }} icon="settings">
       <div className="settings-modal-content">
-        {isSupervisor && <button className="invite-button" title={t("إنشاء حساب فريق")} onClick={() => { setSettingsOpen(false); onCreateTeam?.(); }}><span><AppIcon name="userPlus" size={18} /></span> {t("إنشاء حساب فريق")} <span className="invite-arrow"><AppIcon name="arrowLeft" size={15} /></span></button>}
+        {isSupervisor && <button className="invite-button" title={t("إضافة فريق")} onClick={() => { setSettingsOpen(false); onCreateTeam?.(); }}><span><AppIcon name="userPlus" size={18} /></span> {t("إضافة فريق")} <span className="invite-arrow"><AppIcon name="arrowLeft" size={15} /></span></button>}
         <div className="sidebar-live-status" title={t("تحديثات مباشرة")} aria-label={t("تحديثات مباشرة")}><i /><span>{t("تحديثات مباشرة")}</span></div>
-        {isSupervisor && pendingCheckTasks.length > 0 && (
-          <div className="check-menu-wrap sidebar-check-menu">
-            <button className="pending-checks" title={t("طلبات جيك")} onClick={() => setCheckMenuOpen((open) => !open)} aria-expanded={checkMenuOpen}>
-              <AppIcon name="alert" size={15} />{pendingCheckTasks.length} {t("طلبات جيك")} <AppIcon name="chevronDown" size={14} />
-            </button>
-            {checkMenuOpen && <div className="check-dropdown">
-              {pendingCheckTasks.map((task) => <button key={task.id} onClick={() => { onOpenTask?.(task); setCheckMenuOpen(false); setSettingsOpen(false); }}><strong>#{task.taskNumber}</strong><span>{t(task.title)}</span><AppIcon name="arrowLeft" size={15} /></button>)}
-            </div>}
-          </div>
-        )}
         {isSupervisor && onEnableNotifications && <button className={`notification-toggle sidebar-notification-toggle ${notificationsEnabled ? "enabled" : ""}`} title={t(notificationsEnabled ? "التنبيهات مفعلة" : "تفعيل التنبيهات")} onClick={onEnableNotifications}><AppIcon name={notificationsEnabled ? "check" : "alert"} size={15} />{t(notificationsEnabled ? "التنبيهات مفعلة" : "تفعيل التنبيهات")}</button>}
         {demoTeams && role === "team" && (
           <select className="topbar-team-select sidebar-team-select" aria-label={t("اختر الفريق")} value={demoTeamId} onChange={(event) => onDemoTeamChange(event.target.value)}>
             {demoTeams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}
           </select>
         )}
-        {onDemoRoleChange && <button className="role-preview-button sidebar-role-preview" title={t(role === "supervisor" ? "عرض واجهة الفريق" : "عرض واجهة المتابع")} onClick={onDemoRoleChange}><AppIcon name="users" size={15} />{t(role === "supervisor" ? "عرض واجهة الفريق" : "عرض واجهة المتابع")}</button>}
         <PreferencesBar />
       </div>
     </Modal>}
@@ -915,7 +1127,7 @@ function Sidebar({ role, email, displayName, teamName, selected, tasks, showDash
   );
 }
 
-function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelete, onArchive, onShowMap }) {
+function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelete, onShowMap }) {
   const t = useCopy();
   const { language } = usePreferences();
   const governorateCodes = getTaskGovernorateCodes(task);
@@ -926,15 +1138,16 @@ function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelet
       <div className="breadcrumbs"><span>{t(role === "supervisor" ? "لوحة المتابعة" : "مساحة الفريق")}</span><b> / </b><strong>{t("المهمة")} {task.taskNumber}</strong></div>
       <div className="task-heading-row">
         <div>
-          <div className="task-title-line"><h1>{t(task.title)}</h1><span className={`state-chip ${task.status === "done" ? "state-done" : ""}`}><i />{t(task.status === "done" ? "مكتملة" : "قيد التنفيذ")}</span></div>
-          <p>{t(task.description || "لا يوجد وصف إضافي لهذه المهمة.")}</p>
+          <div className="task-title-line"><h1>{t(task.title)}</h1><span className={`state-chip ${task.status === "done" ? "state-done" : task.status === "onHold" ? "state-hold" : ""}`}><i />{t(task.status === "done" ? "مكتملة" : task.status === "onHold" ? "معلّقة" : "قيد التنفيذ")}</span></div>
         </div>
         {role === "supervisor" && (
           <div className="task-header-actions">
-            <button className={`button ${task.status === "done" ? "button-soft" : "button-primary"}`} onClick={() => onStatusChange(task)}>
+            {task.status !== "done" && <button className="button button-soft" onClick={() => onStatusChange(task, task.status === "onHold" ? "open" : "onHold")}>
+              {task.status === "onHold" ? t("استئناف المهمة") : t("إيقاف المهمة مؤقتاً")}
+            </button>}
+            <button className={`button ${task.status === "done" ? "button-soft" : "button-primary"}`} onClick={() => onStatusChange(task, task.status === "done" ? "open" : "done")}>
               {task.status === "done" ? t("إعادة فتح المهمة") : <><AppIcon name="check" size={16} />{t("إنهاء المهمة")}</>}
             </button>
-            {task.status === "done" && onArchive && <button className="button button-soft" onClick={() => onArchive(task)}>{t(task.archived ? "استعادة من الأرشيف" : "أرشفة المهمة")}</button>}
             {onEdit && onDelete && <details className="actions-dropdown"><summary aria-label={t("إجراءات التكت")}><AppIcon name="more" size={18} /></summary><div>
               <button onClick={() => onEdit(task)}>{t("تعديل التكت")}</button>
               <button className="danger-action" onClick={() => onDelete(task)}>{t("حذف التكت")}</button>
@@ -946,7 +1159,7 @@ function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelet
         <span><AppIcon className="meta-icon" name="task" size={15} /> {t("رقم المهمة")} <strong>{task.taskNumber}</strong></span>
         <span><AppIcon className="meta-icon" name="calendar" size={15} /> {t("تاريخ الإضافة")} <strong>{formatDate(task.createdAt, language)}</strong></span>
         <span><AppIcon className="meta-icon" name="users" size={15} /> {t("الفريق")} <strong>{t(task.teamName || "فريق الميدان")}</strong></span>
-        {task.location && <span><AppIcon className="meta-icon" name="pin" size={15} /> {t("الموقع")} <strong>{t(task.location)}</strong></span>}
+        {(task.location || getGovernorateCodeFromRegion(task.region)) && <span><AppIcon className="meta-icon" name="pin" size={15} /> {t("الموقع")} <strong>{t(getTaskLocationLabel(task, language))}</strong></span>}
       </div>
       <div className={`task-map-focus ${governorateCodes.length ? "located" : "unlocated"}`}>
         <div className="task-map-focus-copy">
@@ -963,23 +1176,77 @@ function TaskHeader({ task, role, onStatusChange, onCheckAction, onEdit, onDelet
           ) : <small>{t("حدد محافظة واحدة أو أكثر للمهمة لتمييزها على الخريطة.")}</small>}
         </div>
         <div className="task-map-focus-art">
-          <IraqGovernorateMap highlightedCodes={task.status !== "done" && !task.archived ? governorateCodes : []} />
+          <IraqGovernorateMap highlightedCodes={task.status === "open" ? governorateCodes : []} />
         </div>
       </div>
-      {(task.checkStatus === "requested" || task.checkStatus === "checked") && (
-        <div className={`check-banner ${task.checkStatus === "checked" ? "check-complete" : ""}`}>
-          <span className="check-banner-icon"><AppIcon name={task.checkStatus === "checked" ? "check" : "alert"} size={17} /></span>
-          <div><strong>{t(task.checkStatus === "checked" ? "تم الجيك" : "بانتظار الجيك")}</strong><small>{t(task.checkStatus === "checked" ? "تم اعتماد فحص هذه المهمة." : "طلب الفريق مراجعة هذه المهمة من مسؤول الشفت.")}</small></div>
-          {role === "supervisor" && task.checkStatus === "requested" && <button className="button button-primary" onClick={() => onCheckAction(task)}>{t("تأكيد تنفيذ الجيك")}</button>}
-        </div>
-      )}
-      {role === "team" && task.checkStatus !== "requested" && (
-        <div className="team-check-action">
-          <p>{t(task.checkStatus === "checked" ? "يمكن للفريق طلب جيك جديد عند الحاجة." : "بعد إنهاء العمل الميداني، أرسل طلب الجيك لهذه المهمة فقط.")}</p>
-          <button className="button button-primary" onClick={() => onCheckAction(task)}><AppIcon name="task" size={16} />{t("طلب جيك")}</button>
-        </div>
-      )}
     </header>
+  );
+}
+
+function CaseDetails({ task }) {
+  const t = useCopy();
+  const { language } = usePreferences();
+  const fmsUrl = getSafeFmsUrl(task.fmsId);
+  const details = [
+    ["رقم SRC", task.src],
+    ["القسم", getLocalizedCaseValue(task.department, language)],
+    ["المنطقة", getLocalizedRegion(task.region, language)],
+    ["FDT", task.fdt],
+    ["الوصف", task.description],
+    ["EFU", task.efu],
+    ["الصيانة", task.maintenance],
+    ["حالة الكيس", getLocalizedCaseValue(task.caseStatus, language)],
+    ["التصعيد", getLocalizedCaseValue(task.escalation, language)],
+    ["طلب GR", task.grRequest ? getLocalizedCaseValue(task.grRequest === "yes" ? "نعم" : "لا", language) : ""],
+    ["تاريخ إنشاء الكيس", formatCaseCreatedAt(task.caseCreatedAt, language)],
+  ].filter(([, value]) => value);
+
+  if (!fmsUrl && details.length === 0) return null;
+
+  return (
+    <section className="case-details" aria-label={t("بيانات الكيس")}>
+      <h2>{t("بيانات الكيس")}</h2>
+      <div className="case-details-grid">
+        {task.fmsId && <div className="case-detail">
+          <span>{t("معرّف FMS")}</span>
+          {fmsUrl
+            ? <a href={fmsUrl} target="_blank" rel="noreferrer">{t("فتح FMS")} <AppIcon name="arrowLeft" size={13} /></a>
+            : <strong>{task.fmsId}</strong>}
+        </div>}
+        {details.map(([label, value]) => <div className="case-detail" key={label}>
+          <span>{t(label)}</span><strong>{value}</strong>
+        </div>)}
+      </div>
+    </section>
+  );
+}
+
+function CaseDetailsFields({ values, onChange, description, onDescriptionChange }) {
+  const t = useCopy();
+  const field = (key, label, props = {}) => (
+    <label key={key}>{t(label)}<input value={values[key] || ""} onChange={(event) => onChange(key, event.target.value)} {...props} /></label>
+  );
+  return (
+    <fieldset className="case-form-fields">
+      <legend>{t("بيانات الكيس")}</legend>
+      <div className="case-form-grid">
+        {field("src", "رقم SRC", { maxLength: 100 })}
+        {field("fmsId", "معرّف FMS", { type: "url", placeholder: "https://...", maxLength: 2048 })}
+        {field("department", "القسم", { maxLength: 120 })}
+        {field("region", "المنطقة", { maxLength: 120 })}
+        {field("fdt", "FDT", { maxLength: 120 })}
+        <label>{t("الوصف")}<textarea value={description} onChange={(event) => onDescriptionChange(event.target.value)} rows="2" maxLength="2000" /></label>
+        {field("efu", "EFU", { maxLength: 80 })}
+        {field("maintenance", "الصيانة", { maxLength: 120 })}
+        {field("caseStatus", "حالة الكيس", { maxLength: 120 })}
+        {field("escalation", "التصعيد", { maxLength: 120 })}
+        <label>{t("طلب GR")}<select value={values.grRequest || "no"} onChange={(event) => onChange("grRequest", event.target.value)}>
+          <option value="yes">{t("نعم")}</option>
+          <option value="no">{t("لا")}</option>
+        </select></label>
+        <label>{t("تاريخ إنشاء الكيس")}<input type="datetime-local" value={values.caseCreatedAt || ""} onChange={(event) => onChange("caseCreatedAt", event.target.value)} /></label>
+      </div>
+    </fieldset>
   );
 }
 
@@ -1051,7 +1318,7 @@ function EmptyTask({ role, onCreateTask }) {
       <div className="empty-main-icon"><AppIcon name="task" size={30} /></div>
       <span className="eyebrow">{t(role === "supervisor" ? "ابدأ مساحة المتابعة" : "مساحة الفريق")}</span>
       <h1>{t(role === "supervisor" ? "أضف أول مهمة لفريقك" : "لا توجد مهام بعد")}</h1>
-      <p>{t(role === "supervisor" ? "أنشئ مهمة برقمها الخاص، وتابع النقاش والتحديثات في محادثة مستقلة." : "سيضيف المتابع المهام هنا. ستجد محادثة خاصة بكل مهمة.")}</p>
+      <p>{t(role === "supervisor" ? "أنشئ مهمة برقمها الخاص، وحدد فريقاً ميدانياً واعتمد حالة تنفيذها." : "هذه اللوحة متاحة لمسؤول الشفت فقط.")}</p>
       {role === "supervisor" && <button className="button button-primary" onClick={onCreateTask}><AppIcon name="plus" size={17} />{t("إنشاء مهمة جديدة")}</button>}
     </div>
   );
@@ -1072,8 +1339,126 @@ function Modal({ title, subtitle, onClose, children, icon = "plus" }) {
   );
 }
 
-function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDeleteMember }) {
+function TaskCaseCards({ tasks, onOpenTask, className }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const t = useCopy();
+  const { language } = usePreferences();
+  return (
+    <div className={className}>
+      {tasks.map((task) => {
+        const fmsUrl = getSafeFmsUrl(task.fmsId);
+        const createdAt = getDateValue(task.createdAt);
+        const isCompleted = task.status === "done";
+        const closedAt = isCompleted ? getDateValue(task.closedAt) : null;
+        const validClosedAt = closedAt && !Number.isNaN(closedAt.getTime());
+        const timerEnd = isCompleted ? (validClosedAt ? closedAt.getTime() : null) : now;
+        const elapsedMs = createdAt && !Number.isNaN(createdAt.getTime()) && timerEnd !== null
+          ? Math.max(0, timerEnd - createdAt.getTime())
+          : null;
+        const overSla = elapsedMs !== null && elapsedMs >= TASK_SLA_MS;
+        const progress = elapsedMs === null ? 0 : Math.min(100, (elapsedMs / TASK_SLA_MS) * 100);
+        const extraDetails = [
+          task.department && ["القسم", task.department],
+          task.caseStatus && ["حالة الكيس", task.caseStatus],
+          task.grRequest && ["طلب GR", task.grRequest === "yes" ? "نعم" : "لا"],
+          task.caseCreatedAt && ["تاريخ إنشاء الكيس", formatCaseCreatedAt(task.caseCreatedAt, language)],
+        ].filter(Boolean);
+
+        return (
+          <article className={`task-case-card ${overSla ? "over-sla" : ""}`} key={task.id}>
+            <header className="task-case-header">
+              <button type="button" className="task-case-identity" onClick={() => onOpenTask?.(task)}>
+                <span className="task-case-icon"><AppIcon name="network" size={14} /></span>
+                <bdi>{task.src || task.taskNumber}</bdi>
+              </button>
+              <div className="task-case-badges">
+                <span className="task-case-efu">EFU {task.efu || "0"}</span>
+                {task.escalation && <span className="task-case-escalation">{t("التصعيد")} {getLocalizedCaseValue(task.escalation, language)}</span>}
+                {overSla && <span className="task-case-sla-badge">{t("تجاوز SLA")}</span>}
+              </div>
+            </header>
+
+            <div className="task-case-fields">
+              {[
+                ["الصيانة", task.maintenance || "غير محدد"],
+                ["المنطقة", getLocalizedRegion(task.region, language) || "غير محدد"],
+                ["FDT", task.fdt || "غير محدد"],
+              ].map(([label, value]) => (
+                <div className="task-case-field" key={label}>
+                  <span>{t(label)}</span><strong>{t(value)}</strong>
+                </div>
+              ))}
+            </div>
+
+            {task.description && (
+              <div className="task-case-description">
+                <strong>{t("الوصف")}:</strong><span>{task.description}</span>
+              </div>
+            )}
+
+            {extraDetails.length > 0 && (
+              <div className="task-case-extra">
+                {extraDetails.map(([label, value]) => (
+                  <span key={label}><strong>{t(label)}:</strong> {getLocalizedCaseValue(value, language)}</span>
+                ))}
+              </div>
+            )}
+
+            <div className="task-case-timer">
+              <div className="task-case-timer-labels">
+                <span><AppIcon name="clock" size={13} /><strong>{t(isCompleted ? "الوقت عند الإغلاق" : "الوقت المنقضي")}:</strong> {elapsedMs === null ? (isCompleted ? t("غير متوفر") : "--:--:--") : formatDuration(elapsedMs)}</span>
+                <span className={overSla ? "remaining-over-sla" : ""}>
+                  <strong>{t(isCompleted ? "المتبقي عند الإغلاق" : "الوقت المتبقي")}:</strong> {elapsedMs === null ? (isCompleted ? t("غير متوفر") : "--:--:--") : overSla ? t("تجاوز SLA") : formatDuration(TASK_SLA_MS - elapsedMs)}
+                </span>
+              </div>
+              <div className={`task-case-progress ${elapsedMs === null ? "unknown" : ""}`} role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={elapsedMs === null ? undefined : Math.round(progress)} aria-label={t("الوقت المنقضي حتى تجاوز SLA")}>
+                <span style={{ width: `${elapsedMs === null ? 100 : progress}%` }} />
+              </div>
+            </div>
+
+            <footer className="task-case-footer">
+              <span><strong>{t("تاريخ إضافة المهمة")}:</strong> {formatCaseCreatedAt(task.createdAt, language) || "—"}</span>
+              {isCompleted && <span><strong>{t("تاريخ إغلاق المهمة")}:</strong> {validClosedAt ? formatCaseCreatedAt(closedAt, language) : t("وقت الإغلاق غير مسجل")}</span>}
+              {fmsUrl && <a href={fmsUrl} target="_blank" rel="noreferrer"><AppIcon name="arrowLeft" size={13} />{t("فتح مهمة FMS")}</a>}
+            </footer>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function TasksStatusPage({ tasks, status, onOpenTask }) {
+  const t = useCopy();
+  const statuses = {
+    progress: { title: "قيد التنفيذ", label: "قيد التنفيذ", filter: (task) => task.status === "open" },
+    onHold: { title: "معلّقة", label: "معلّقة", filter: (task) => task.status === "onHold" },
+    completed: { title: "مكتملة", label: "مكتملة", filter: (task) => task.status === "done" },
+  };
+  const current = statuses[status] || statuses.progress;
+  const visible = tasks.filter(current.filter);
+  return (
+    <section className="tasks-status-page">
+      <header className="tasks-status-header">
+        <div><span>{t("المهام")}</span><h1>{t(current.title)}</h1><p>{t(current.label)} · {visible.length} {t("مهام")}</p></div>
+      </header>
+      {visible.length ? (
+        <TaskCaseCards tasks={visible} onOpenTask={onOpenTask} className="tasks-status-grid" />
+      ) : (
+        <div className="members-empty-state"><AppIcon name="task" size={24} /><strong>{t("لا توجد مهام بهذه الحالة.")}</strong></div>
+      )}
+    </section>
+  );
+}
+
+function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDeleteMember, onCreateTeam, getTeamShiftStatus, onToggleTeamAvailability, initialView = "teams" }) {
+  const t = useCopy();
+  const [selectedShift, setSelectedShift] = useState("all");
   const [selectedTeamId, setSelectedTeamId] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [editingMember, setEditingMember] = useState(null);
@@ -1160,68 +1545,112 @@ function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDel
     <section className="team-members-page">
       <header className="members-page-header">
         <div>
-          <span className="members-page-eyebrow"><AppIcon name="users" size={15} />{t("أعضاء الفرق")}</span>
-          <h1>{t("أعضاء الفرق")}</h1>
-          <p>{t("معلومات الأعضاء مستقلة عن حسابات الدخول.")}</p>
+          <span className="members-page-eyebrow"><AppIcon name={initialView === "teams" ? "list" : "users"} size={15} />{t(initialView === "teams" ? "الفرق" : "الأعضاء")}</span>
+          <h1>{t(initialView === "teams" ? "الفرق" : "الأعضاء")}</h1>
+          <p>{t(initialView === "teams" ? "عرض الفرق وحالة المناوبة وعدد الأعضاء." : "معلومات الأعضاء مستقلة عن حسابات الدخول.")}</p>
         </div>
-        <button className="button button-primary" disabled={!teams.length} onClick={startCreate}><AppIcon name="plus" size={16} />{t("إضافة عضو")}</button>
+        <button className="button button-primary" onClick={initialView === "teams" ? onCreateTeam : startCreate} disabled={initialView === "members" && !teams.length}>
+          <AppIcon name="plus" size={16} />{t(initialView === "teams" ? "إضافة فريق" : "إضافة عضو")}
+        </button>
       </header>
 
-      {!teams.length ? (
+      {initialView === "teams" ? (
+        teams.length ? (
+          <>
+            <div className="shift-filter-row">
+              <label htmlFor="shift-filter">{t("الشفتات")}</label>
+              <select id="shift-filter" className="shift-filter-select" value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}>
+                <option value="all">{t("كل الشفتات")}</option>
+                <option value="morning">{t("الصباحي")}</option>
+                <option value="evening">{t("المسائي")}</option>
+                <option value="night">{t("الفجري")}</option>
+              </select>
+            </div>
+            <div className="teams-directory-grid">
+              {teams
+                .filter((team) => selectedShift === "all" || (team.shift || "morning") === selectedShift)
+                .map((team) => (
+                        <article className="team-directory-card" key={team.id}>
+                <header className="team-directory-header">
+                  <div>
+                    <h2>{t(team.name)}</h2>
+                    <p>{t(getTeamShiftStatus(team))} · {memberCount(team.id)} {t("أعضاء")}</p>
+                  </div>
+                    <button type="button" className={`team-shift-status ${getTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`} onClick={() => onToggleTeamAvailability(team)} title={t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))} aria-label={`${t("تغيير حالة الفريق")}: ${t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))}`}>
+                      {t(getTeamShiftStatus(team))}
+                    </button>
+                </header>
+                <div className="team-directory-members">
+                  {members.filter((member) => member.teamId === team.id).map((member) => (
+                    <div className="team-directory-member" key={member.id}>
+                      <div className="team-directory-member-main">
+                        <span className="member-mini-avatar">{(member.name || "?").trim().slice(0, 1).toUpperCase()}</span>
+                        <div>
+                          <strong>{member.name}</strong>
+                          <small>{member.employeeId || t("بدون معرّف")} · {member.phone || t("لا يوجد رقم")}</small>
+                        </div>
+                      </div>
+                      <details className="actions-dropdown">
+                        <summary aria-label={t("إجراءات العضو")}><AppIcon name="more" size={18} /></summary>
+                        <div>
+                          <button onClick={() => startEdit(member)}>{t("تعديل بيانات العضو")}</button>
+                          <button className="danger-action" onClick={() => setDeletingMember(member)}>{t("حذف العضو")}</button>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+                  {memberCount(team.id) === 0 && (
+                    <div className="team-directory-empty"><AppIcon name="users" size={18} /><span>{t("لا يوجد أعضاء لهذا الفريق بعد.")}</span></div>
+                  )}
+                </div>
+              </article>
+                ))}
+            </div>
+          </>
+        ) : (
+          <div className="members-empty-state"><AppIcon name="users" size={25} /><strong>{t("لا توجد فرق متاحة بعد.")}</strong></div>
+        )
+      ) : !teams.length ? (
         <div className="members-empty-state"><AppIcon name="users" size={25} /><strong>{t("لا توجد فرق متاحة. أضف فريقاً أولاً ثم سجّل أعضاءه.")}</strong></div>
       ) : (
-        <div className="members-directory-layout">
-          <aside className="members-team-panel">
-            <header><h2>{t("إدارة الفرق")}</h2><span>{teams.length}</span></header>
-            <button type="button" className={`members-team-choice ${selectedTeamId === "all" ? "active" : ""}`} onClick={() => setSelectedTeamId("all")}>
-              <span>{t("كل الفرق")}</span><strong>{members.length}</strong>
-            </button>
-            {teams.map((team) => (
-              <button type="button" className={`members-team-choice ${selectedTeamId === team.id ? "active" : ""}`} key={team.id} onClick={() => setSelectedTeamId(team.id)}>
-                <span>{t(team.name)}</span><strong>{memberCount(team.id)}</strong>
-              </button>
-            ))}
-          </aside>
-
-          <section className="members-roster-panel">
-            <header className="members-roster-header">
-              <div><h2>{selectedTeam ? t(selectedTeam.name) : t("كل الفرق")}</h2><p>{filteredMembers.length} {t("أعضاء")}</p></div>
-              <label className="members-search"><AppIcon name="search" size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={t("بحث بالاسم أو المعرّف...")} aria-label={t("بحث بالاسم أو المعرّف...")} /></label>
-            </header>
-            {filteredMembers.length ? (
-              <div className="members-card-grid">
-                {filteredMembers.map((member) => {
-                  const team = teams.find((item) => item.id === member.teamId);
-                  const details = [
-                    [t("رقم الهاتف"), member.phone],
-                    [t("الاختصاص أو المسؤولية"), member.responsibility],
-                    [t("المعرّف"), member.employeeId],
-                    [t("اسم المستخدم (معلومات فقط)"), member.username],
-                  ].filter(([, value]) => value);
-                  return (
-                    <article className="member-card" key={`${member.teamId}-${member.id}`}>
-                      <header><div><h3>{member.name}</h3>{selectedTeamId === "all" && <span>{t(team?.name || "")}</span>}</div><details className="actions-dropdown"><summary aria-label={t("إجراءات العضو")}><AppIcon name="more" size={18} /></summary><div>
+        <div className="members-only-panel">
+          <header className="members-roster-header members-only-header">
+            <div><h2>{t("جميع الأعضاء")}</h2><p>{filteredMembers.length} {t("أعضاء")}</p></div>
+            <label className="members-search"><AppIcon name="search" size={16} /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={t("بحث بالاسم أو المعرّف...")} aria-label={t("بحث بالاسم أو المعرّف...")} /></label>
+          </header>
+          {filteredMembers.length ? (
+            <div className="members-card-grid">
+              {filteredMembers.map((member) => {
+                const team = teams.find((item) => item.id === member.teamId);
+                return (
+                  <article className="member-card" key={`${member.teamId}-${member.id}`}>
+                    <header>
+                      <div><h3>{member.name}</h3><span>{t(team?.name || "")}</span></div>
+                      <details className="actions-dropdown"><summary aria-label={t("إجراءات العضو")}><AppIcon name="more" size={18} /></summary><div>
                         <button onClick={() => startEdit(member)}>{t("تعديل بيانات العضو")}</button>
                         <button className="danger-action" onClick={() => setDeletingMember(member)}>{t("حذف العضو")}</button>
-                      </div></details></header>
-                      <div className="member-card-details">
-                        {details.length ? details.map(([label, value]) => <div key={label}><small>{label}</small><span>{value}</span></div>) : <span className="member-no-details">{t("لا توجد تفاصيل إضافية.")}</span>}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="members-empty-state"><AppIcon name={normalizedSearch ? "search" : "users"} size={24} /><strong>{t(normalizedSearch ? "لا توجد أسماء مطابقة." : "لا يوجد أعضاء لهذا الفريق بعد.")}</strong></div>
-            )}
-          </section>
+                      </div></details>
+                    </header>
+                    <div className="member-card-details">
+                      {member.phone && <div><small>{t("رقم الهاتف")}</small><span>{member.phone}</span></div>}
+                      {member.responsibility && <div><small>{t("الاختصاص أو المسؤولية")}</small><span>{member.responsibility}</span></div>}
+                      {member.employeeId && <div><small>{t("المعرّف")}</small><span>{member.employeeId}</span></div>}
+                      {member.username && <div><small>{t("اسم المستخدم")}</small><span>{member.username}</span></div>}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="members-empty-state"><AppIcon name="users" size={24} /><strong>{t("لا يوجد أعضاء بعد.")}</strong></div>
+          )}
         </div>
       )}
 
       {formOpen && (
         <Modal title={t(editingMember ? "تعديل بيانات العضو" : "إضافة عضو")} subtitle={t("معلومات تعريفية فقط، لا تنشئ حساب دخول.")} onClose={() => setFormOpen(false)}>
           <form className="modal-form" onSubmit={saveMember}>
-            <label>{t("الفريق")}<select name="teamId" value={form.teamId} onChange={(event) => setForm((current) => ({ ...current, teamId: event.target.value }))} disabled={Boolean(editingMember)} required>
+            <label>{t("الفريق")}<select name="teamId" value={form.teamId} onChange={(event) => setForm((current) => ({ ...current, teamId: event.target.value }))} required>
               {teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}
             </select></label>
             <label>{t("الاسم الكامل")}<input name="name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} maxLength="100" required autoFocus /></label>
@@ -1245,19 +1674,26 @@ function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDel
   );
 }
 
-function DashboardView({ role, tasks, selectedTask, onOpenTask, onCreateTask, onManageTeams }) {
+function DashboardView({ role, tasks, teams = [], getTeamShiftStatus, onToggleTeamAvailability, selectedTask, onOpenTask, onCreateTask, onManageTeams }) {
   const t = useCopy();
   const { language } = usePreferences();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGovernorate, setSelectedGovernorate] = useState(null);
-  const visibleTasks = tasks.filter((task) => !task.archived);
-  const activeTasks = visibleTasks.filter((task) => task.status !== "done");
+  const [selectedShift, setSelectedShift] = useState("morning");
+  const visibleTasks = tasks;
+  const shiftTeams = teams.filter((team) => (team.shift || "morning") === selectedShift);
+  const activeTasks = tasks.filter((task) => task.status === "open");
+  const mapTasks = tasks.filter((task) => task.status === "open");
   const selectedTasks = selectedGovernorate
     ? activeTasks.filter((task) => getTaskGovernorateCodes(task).includes(selectedGovernorate))
     : activeTasks;
-  const pendingChecks = activeTasks.filter((task) => task.checkStatus === "requested");
+  const selectedMapTasks = selectedGovernorate
+    ? mapTasks.filter((task) => getTaskGovernorateCodes(task).includes(selectedGovernorate))
+    : mapTasks;
+  const onHoldTasks = tasks.filter((task) => task.status === "onHold");
+  const inProgressTasks = activeTasks.filter((task) => task.status === "open");
   const completedTasks = visibleTasks.filter((task) => task.status === "done");
-  const locations = [...new Set(selectedTasks.map((task) => task.location?.trim()).filter(Boolean))].slice(0, 4);
+  const locations = [...new Set(selectedMapTasks.map((task) => task.location?.trim()).filter(Boolean))].slice(0, 4);
   const normalizedSearch = searchTerm.trim().toLocaleLowerCase();
   const filteredTasks = normalizedSearch
     ? selectedTasks.filter((task) => [
@@ -1271,15 +1707,15 @@ function DashboardView({ role, tasks, selectedTask, onOpenTask, onCreateTask, on
     ].join(" ").toLocaleLowerCase().includes(normalizedSearch))
     : selectedTasks;
   const featuredTasks = filteredTasks.slice(0, 4);
-  const highlightedCodes = getTaskGovernorateCodesForTasks(visibleTasks);
+  const highlightedCodes = getTaskGovernorateCodesForTasks(mapTasks);
   const highlightedNames = selectedGovernorate
     ? [getGovernorateName(selectedGovernorate, language)]
     : highlightedCodes.map((code) => getGovernorateName(code, language));
   const highlightedNamesText = highlightedNames.join(language === "en" ? ", " : "، ");
   const stats = [
-    { key: "pending", label: t("بانتظار الفحص"), value: pendingChecks.length, icon: "clock" },
+    { key: "active", label: t("قيد التنفيذ"), value: inProgressTasks.length, icon: "activity" },
+    { key: "pending", label: t("معلّقة"), value: onHoldTasks.length, icon: "clock" },
     { key: "complete", label: t("مكتملة"), value: completedTasks.length, icon: "check" },
-    { key: "active", label: t("قيد التنفيذ"), value: activeTasks.length, icon: "activity" },
     { key: "total", label: t("إجمالي المهام"), value: visibleTasks.length, icon: "task" },
   ];
   return (
@@ -1349,17 +1785,9 @@ function DashboardView({ role, tasks, selectedTask, onOpenTask, onCreateTask, on
             <span className="dashboard-panel-count">{filteredTasks.length}</span>
           </div>
           <div className="dashboard-case-list">
-            {featuredTasks.length ? featuredTasks.map((task) => (
-              <button className="dashboard-case" key={task.id} onClick={() => onOpenTask(task)}>
-                <span className={`dashboard-case-accent ${task.checkStatus === "requested" ? "attention" : ""}`} />
-                <span className="dashboard-case-copy">
-                  <strong><bdi>{task.taskNumber}</bdi> · {t(task.title)}</strong>
-                  <small><AppIcon name="pin" size={12} />{t(task.location || "الموقع غير محدد")} <i>·</i> {t(task.teamName || "فريق الميدان")}</small>
-                </span>
-                {task.checkStatus === "requested" && <span className="dashboard-case-status pending">{t("بانتظار الفحص")}</span>}
-                <AppIcon className="dashboard-case-arrow" name="arrowLeft" size={16} />
-              </button>
-            )) : <div className="dashboard-empty-state"><AppIcon name={normalizedSearch ? "search" : "check"} size={22} /><span>{t(normalizedSearch ? "لم نعثر على مهام مطابقة." : selectedGovernorate ? "لا توجد مهام مفتوحة في هذه المحافظة." : "لا توجد مهام نشطة حالياً.")}</span></div>}
+            {featuredTasks.length
+              ? <TaskCaseCards tasks={featuredTasks} onOpenTask={onOpenTask} className="dashboard-active-task-cards" />
+              : <div className="dashboard-empty-state"><AppIcon name={normalizedSearch ? "search" : "check"} size={22} /><span>{t(normalizedSearch ? "لم نعثر على مهام مطابقة." : selectedGovernorate ? "لا توجد مهام مفتوحة في هذه المحافظة." : "لا توجد مهام نشطة حالياً.")}</span></div>}
           </div>
           <div className="dashboard-cases-footer">
             <span>{selectedGovernorate ? `${t("المهام في")} ${getGovernorateName(selectedGovernorate, language)}` : t("المهام النشطة")}</span>
@@ -1371,16 +1799,42 @@ function DashboardView({ role, tasks, selectedTask, onOpenTask, onCreateTask, on
           <div className="dashboard-panel-heading">
             <h2><AppIcon name="bolt" size={17} />{t("إجراءات سريعة")}</h2>
           </div>
+          {role === "supervisor" && <div className="dashboard-shift-switcher" role="group" aria-label={t("الشفتات")}>
+            {[
+              ["morning", "الصباحي"],
+              ["evening", "المسائي"],
+              ["night", "الفجري"],
+            ].map(([shift, label]) => (
+              <button type="button" className={selectedShift === shift ? "active" : ""} aria-pressed={selectedShift === shift} key={shift} onClick={() => setSelectedShift(shift)}>{t(label)}</button>
+            ))}
+          </div>}
+          {role === "supervisor" && <div className="dashboard-shift-teams">
+            <header><span>{t("فرق الشفت")}</span><strong>{shiftTeams.length}</strong></header>
+            {shiftTeams.length ? (
+              <ul>
+                {shiftTeams.map((team) => {
+                  const teamStatus = getTeamShiftStatus(team);
+                  const availabilityClass = teamStatus === "خارج المناوبة" ? "off-shift" : teamStatus === "مشغول" ? "busy" : "available";
+                  return (
+                    <li key={team.id}>
+                      <AppIcon name="users" size={13} />
+                      <span title={team.name}>{t(team.name)}</span>
+                      <button
+                        type="button"
+                        className={`dashboard-team-status-dot ${availabilityClass}`}
+                        title={t(getNextTeamAvailabilityLabel(teamStatus))}
+                        aria-label={`${t("تغيير حالة الفريق")}: ${t(getNextTeamAvailabilityLabel(teamStatus))}`}
+                        onClick={() => onToggleTeamAvailability(team)}
+                      ><i /></button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p>{t("لا توجد فرق في هذا الشفت.")}</p>}
+          </div>}
           {role === "supervisor" && (
             <button className="dashboard-action primary" onClick={onCreateTask}><AppIcon name="plus" size={18} />{t("مهمة جديدة")}<AppIcon name="arrowLeft" size={15} /></button>
           )}
-          <button
-            className="dashboard-action"
-            disabled={!pendingChecks.length}
-            onClick={() => pendingChecks[0] && onOpenTask(pendingChecks[0])}
-          >
-            <AppIcon name="check" size={18} />{t("مراجعة طلب فحص")}<AppIcon name="arrowLeft" size={15} />
-          </button>
           {role === "supervisor" && (
             <button className="dashboard-action" onClick={onManageTeams}><AppIcon name="users" size={18} />{t("عرض الفرق")}<AppIcon name="arrowLeft" size={15} /></button>
           )}
@@ -1398,8 +1852,8 @@ function StandaloneMapView({ tasks, onOpenTask }) {
   const t = useCopy();
   const { language } = usePreferences();
   const [selectedGovernorate, setSelectedGovernorate] = useState(null);
-  const visibleTasks = tasks.filter((task) => !task.archived);
-  const activeTasks = visibleTasks.filter((task) => task.status !== "done");
+  const visibleTasks = tasks;
+  const activeTasks = tasks.filter((task) => task.status === "open");
   const taskCodes = activeTasks.map((task) => getTaskGovernorateCodes(task));
   const governorateCounts = new Map(iraqGovernorates.map((governorate) => [governorate.code, 0]));
   taskCodes.forEach((codes) => codes.forEach((code) => governorateCounts.set(code, (governorateCounts.get(code) || 0) + 1)));
@@ -1414,6 +1868,7 @@ function StandaloneMapView({ tasks, onOpenTask }) {
   const tasksInMap = mappedTasks.length;
   const unlocatedTasks = activeTasks.length - tasksInMap;
   const completedTasks = visibleTasks.filter((task) => task.status === "done").length;
+  const onHoldTasks = visibleTasks.filter((task) => task.status === "onHold").length;
   const inProgressTasks = activeTasks.length;
   return (
     <section className="standalone-map-page" aria-label={t("خريطة العمليات الميدانية")}>
@@ -1496,6 +1951,7 @@ function StandaloneMapView({ tasks, onOpenTask }) {
               <header><h3>{t("حالة المهام")}</h3><span>{visibleTasks.length}</span></header>
               {[
                 { label: "قيد التنفيذ", count: inProgressTasks, className: "progress" },
+                { label: "معلّقة", count: onHoldTasks, className: "hold" },
                 { label: "مكتملة", count: completedTasks, className: "complete" },
               ].map((status) => (
                 <div className="map-task-status-row" key={status.className}>
@@ -1534,7 +1990,9 @@ function Workspace({ user, profile }) {
   const [selected, setSelected] = useState(null);
   const [showDashboard, setShowDashboard] = useState(true);
   const [showMap, setShowMap] = useState(false);
+  const [showTeams, setShowTeams] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showTasks, setShowTasks] = useState(null);
   const [messages, setMessages] = useState([]);
   const [modal, setModal] = useState("");
   const [error, setError] = useState("");
@@ -1551,11 +2009,10 @@ function Workspace({ user, profile }) {
   const [taskLocation, setTaskLocation] = useState("");
   const [taskGovernorates, setTaskGovernorates] = useState([]);
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskCaseDetails, setTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [taskTeamId, setTaskTeamId] = useState("");
   const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamUsername, setNewTeamUsername] = useState("");
-  const [newTeamPassword, setNewTeamPassword] = useState("");
-  const [createdTeamCredentials, setCreatedTeamCredentials] = useState(null);
+  const [newTeamShift, setNewTeamShift] = useState("morning");
   const [supervisorDisplayName, setSupervisorDisplayName] = useState(user.displayName || profile.displayName || "");
   const [profileEditName, setProfileEditName] = useState("");
   const [profileNewEmail, setProfileNewEmail] = useState("");
@@ -1565,6 +2022,8 @@ function Workspace({ user, profile }) {
   const [editingTask, setEditingTask] = useState(null);
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
+  const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [editTaskLocation, setEditTaskLocation] = useState("");
   const [editTaskGovernorates, setEditTaskGovernorates] = useState([]);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
@@ -1574,7 +2033,7 @@ function Workspace({ user, profile }) {
   const [deletingMessage, setDeletingMessage] = useState(null);
   const [editingTeam, setEditingTeam] = useState(null);
   const [editTeamName, setEditTeamName] = useState("");
-  const [resetTeamPassword, setResetTeamPassword] = useState("");
+  const [editTeamShift, setEditTeamShift] = useState("morning");
   const [deletingTeam, setDeletingTeam] = useState(null);
   const [teamDeleteMode, setTeamDeleteMode] = useState("empty");
   const [teamReassignId, setTeamReassignId] = useState("");
@@ -1582,9 +2041,11 @@ function Workspace({ user, profile }) {
   const isSupervisor = role === "supervisor";
   const getTeamShiftStatus = (team) => {
     if (team.availability === "off-shift") return "خارج المناوبة";
-    return tasks.some((task) => task.teamId === team.id && task.status !== "done")
+    if (team.availability === "busy") return "مشغول";
+    if (team.availability === "ready") return "جاهز";
+    return tasks.some((task) => task.teamId === team.id && task.status === "open")
       ? "مشغول"
-      : "متاح بالمناوبة";
+      : "جاهز";
   };
 
   useEffect(() => {
@@ -1743,6 +2204,7 @@ function Workspace({ user, profile }) {
         taskNumber: number,
         title: taskTitle.trim(),
         description: taskDescription.trim(),
+        ...normalizeTaskCaseDetails(taskCaseDetails),
         location: taskLocation.trim(),
         governorates: taskGovernorates,
         governorate: taskGovernorates[0],
@@ -1753,7 +2215,7 @@ function Workspace({ user, profile }) {
         createdBy: user.uid,
         createdAt: serverTimestamp(),
       });
-      setSelected({ id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", checkStatus: "none", createdAt: null });
+      setSelected({ id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), ...normalizeTaskCaseDetails(taskCaseDetails), location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", checkStatus: "none", createdAt: new Date().toISOString() });
       setShowMap(false);
       setShowMembers(false);
       setShowDashboard(false);
@@ -1762,6 +2224,7 @@ function Workspace({ user, profile }) {
       setTaskLocation("");
       setTaskGovernorates([]);
       setTaskDescription("");
+      setTaskCaseDetails(EMPTY_CASE_DETAILS);
       setModal("");
     } catch (createError) {
       setError(friendlyError(createError));
@@ -1774,18 +2237,20 @@ function Workspace({ user, profile }) {
     setError("");
     try {
       if (!name) throw new Error("أدخل اسم الفريق.");
-      const username = normalizeUsername(newTeamUsername);
-      if (newTeamPassword.length < 8) throw new Error("كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
-    if (teams.some((team) => team.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      if (teams.some((team) => team.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
         throw new Error("يوجد فريق بهذا الاسم بالفعل.");
       }
-      const createTeamAccount = httpsCallable(functions, "createTeamAccount");
-      const result = await createTeamAccount({ name, username, password: newTeamPassword });
-      setCreatedTeamCredentials({ name, username, password: newTeamPassword });
-      setTaskTeamId(result.data.teamId);
+      const teamId = `team-${crypto.randomUUID()}`;
+      await setDoc(doc(db, "teams", teamId), {
+        name,
+        shift: newTeamShift,
+        availability: "ready",
+        createdBy: user.uid,
+        createdAt: serverTimestamp(),
+      });
+      setTaskTeamId(teamId);
       setNewTeamName("");
-      setNewTeamUsername("");
-      setNewTeamPassword("");
+      setModal("");
     } catch (createError) {
       setError(friendlyError(createError));
     }
@@ -1874,23 +2339,14 @@ function Workspace({ user, profile }) {
     }
   }
 
-  async function toggleTaskStatus(task) {
+  async function changeTaskStatus(task, status) {
     try {
       await updateDoc(doc(db, "tasks", task.id), {
-        status: task.status === "done" ? "open" : "done",
-        archived: false,
+        status,
+        closedAt: status === "done" ? serverTimestamp() : null,
       });
     } catch (statusError) {
       setError(friendlyError(statusError));
-    }
-  }
-
-  async function toggleTaskArchive(task) {
-    if (task.status !== "done") return;
-    try {
-      await updateDoc(doc(db, "tasks", task.id), { archived: !task.archived });
-    } catch (archiveError) {
-      setError(friendlyError(archiveError));
     }
   }
 
@@ -1898,6 +2354,8 @@ function Workspace({ user, profile }) {
     setEditingTask(task);
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
+    setEditTaskClosedAt(toDateTimeInput(task.closedAt));
+    setEditTaskCaseDetails(getTaskCaseFormValues(task));
     setEditTaskLocation(task.location || "");
     setEditTaskGovernorates(getTaskGovernorateCodes(task));
     setEditTaskTeamId(task.teamId);
@@ -1920,6 +2378,8 @@ function Workspace({ user, profile }) {
       await updateDoc(doc(db, "tasks", editingTask.id), {
         title: editTaskTitle.trim(),
         description: editTaskDescription.trim(),
+        closedAt: editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null,
+        ...normalizeTaskCaseDetails(editTaskCaseDetails),
         location: editTaskLocation.trim(),
         governorates: editTaskGovernorates,
         governorate: editTaskGovernorates[0],
@@ -1978,6 +2438,7 @@ function Workspace({ user, profile }) {
   function beginEditTeam(team) {
     setEditingTeam(team);
     setEditTeamName(team.name);
+    setEditTeamShift(team.shift || "morning");
     setResetTeamPassword("");
     setError("");
     setModal("editTeam");
@@ -1987,14 +2448,14 @@ function Workspace({ user, profile }) {
     event.preventDefault();
     if (!editingTeam || !editTeamName.trim()) return;
     try {
-      await httpsCallable(functions, "updateTeamAccount")({
-        teamId: editingTeam.id,
+      await setDoc(doc(db, "teams", editingTeam.id), {
+        ...editingTeam,
         name: editTeamName.trim(),
-        password: resetTeamPassword,
+        shift: editTeamShift,
+        updatedAt: serverTimestamp(),
       });
       setModal("");
       setEditingTeam(null);
-      setResetTeamPassword("");
     } catch (saveError) {
       setError(friendlyError(saveError));
     }
@@ -2002,9 +2463,10 @@ function Workspace({ user, profile }) {
 
   async function toggleTeamAvailability(team) {
     try {
-      await httpsCallable(functions, "setTeamAvailability")({
-        teamId: team.id,
-        availability: team.availability === "off-shift" ? "on-shift" : "off-shift",
+      await setDoc(doc(db, "teams", team.id), {
+        ...team,
+        availability: getNextTeamAvailability(getTeamShiftStatus(team)),
+        updatedAt: serverTimestamp(),
       });
     } catch (availabilityError) {
       setError(friendlyError(availabilityError));
@@ -2034,14 +2496,27 @@ function Workspace({ user, profile }) {
   async function updateTeamMember(member, changes) {
     setError("");
     try {
-      await updateDoc(doc(db, "teams", member.teamId, "members", member.id), {
-        name: changes.name,
-        phone: changes.phone,
-        responsibility: changes.responsibility,
-        employeeId: changes.employeeId,
-        username: changes.username,
-        updatedAt: serverTimestamp(),
-      });
+      if (changes.teamId && changes.teamId !== member.teamId) {
+        await deleteDoc(doc(db, "teams", member.teamId, "members", member.id));
+        await addDoc(collection(db, "teams", changes.teamId, "members"), {
+          name: changes.name,
+          phone: changes.phone,
+          responsibility: changes.responsibility,
+          employeeId: changes.employeeId,
+          username: changes.username,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await updateDoc(doc(db, "teams", member.teamId, "members", member.id), {
+          name: changes.name,
+          phone: changes.phone,
+          responsibility: changes.responsibility,
+          employeeId: changes.employeeId,
+          username: changes.username,
+          updatedAt: serverTimestamp(),
+        });
+      }
       return true;
     } catch (memberError) {
       setError(friendlyError(memberError));
@@ -2073,11 +2548,23 @@ function Workspace({ user, profile }) {
   async function confirmDeleteTeam() {
     if (!deletingTeam) return;
     try {
-      await httpsCallable(functions, "deleteTeamAccount")({
-        teamId: deletingTeam.id,
-        mode: teamDeleteMode,
-        targetTeamId: teamReassignId,
-      });
+      if (teamDeleteMode === "reassign" && teamReassignId) {
+        await Promise.all(tasks
+          .filter((task) => task.teamId === deletingTeam.id)
+          .map((task) => setDoc(doc(db, "tasks", task.id), {
+            ...task,
+            teamId: teamReassignId,
+            teamName: teams.find((team) => team.id === teamReassignId)?.name || "",
+            updatedAt: serverTimestamp(),
+          })));
+      } else if (teamDeleteMode === "cascade") {
+        await Promise.all(tasks
+          .filter((task) => task.teamId === deletingTeam.id)
+          .map((task) => deleteDoc(doc(db, "tasks", task.id))));
+      } else if (tasks.some((task) => task.teamId === deletingTeam.id)) {
+        throw new Error("لا يمكن حذف الفريق لأن له مهام مرتبطة.");
+      }
+      await deleteDoc(doc(db, "teams", deletingTeam.id));
       setModal("");
       setDeletingTeam(null);
     } catch (deleteError) {
@@ -2096,21 +2583,10 @@ function Workspace({ user, profile }) {
     }
   }
 
-  async function copyTeamCredentials() {
-    const credentials = `${createdTeamCredentials.username}\n${createdTeamCredentials.password}`;
-    try {
-      await navigator.clipboard.writeText(credentials);
-    } catch {
-      setError("تعذر النسخ. انسخ بيانات الدخول يدوياً.");
-    }
-  }
-
   const pendingCheckTasks = tasks.filter((task) => task.checkStatus === "requested");
 
   function closeTeamModal() {
     setModal("");
-    setNewTeamPassword("");
-    setCreatedTeamCredentials(null);
   }
 
   return (
@@ -2120,15 +2596,19 @@ function Workspace({ user, profile }) {
         email={isSupervisor ? user.email : profile.username || user.email}
         displayName={supervisorDisplayName}
         teamName={profile.teamName}
-        selected={showDashboard || showMap || showMembers ? null : selected}
+        selected={showDashboard || showMap || showTeams || showMembers ? null : selected}
         tasks={tasks}
         showDashboard={showDashboard}
         showMap={showMap}
+        showTeams={showTeams}
         showMembers={showMembers}
-        onShowDashboard={() => { setShowMap(false); setShowMembers(false); setShowDashboard(true); }}
-        onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }}
-        onShowMembers={() => { setShowDashboard(false); setShowMap(false); setShowMembers(true); }}
-        onSelect={(task) => { setSelected(task); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
+        showTasks={showTasks}
+        onShowDashboard={() => { setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(null); setShowDashboard(true); }}
+        onShowMap={() => { setShowDashboard(false); setShowTeams(false); setShowMembers(false); setShowTasks(null); setShowMap(true); }}
+        onShowTeams={() => { setShowDashboard(false); setShowMap(false); setShowMembers(false); setShowTasks(null); setShowTeams(true); }}
+        onShowMembers={() => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowTasks(null); setShowMembers(true); }}
+        onShowTasks={(status) => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(status); }}
+        onSelect={(task) => { setSelected(task); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowDashboard(false); }}
         onLogout={() => signOut(auth)}
         onCreateTask={() => { setError(""); setTaskGovernorates([]); if (teams.length) setModal("task"); else setModal("team"); }}
         onCreateTeam={() => { setError(""); setCreatedTeamCredentials(null); setModal("team"); }}
@@ -2142,8 +2622,12 @@ function Workspace({ user, profile }) {
       <main className="main-panel">
         {error && <div className="global-error" role="alert">{t(error)}<button onClick={() => setError("")}>×</button></div>}
         {notificationAlert && <div className="check-toast" role="status"><span><AppIcon name="alert" size={16} />{t("طلب جيك جديد")} #{notificationAlert.taskNumber}</span><button onClick={() => { const task = tasks.find((item) => item.id === notificationAlert.taskId); if (task) { setSelected(task); setShowMap(false); setShowMembers(false); setShowDashboard(false); } setNotificationAlert(null); }}>{t("فتح الجيك")}</button><button className="toast-close" aria-label={t("إغلاق")} onClick={() => setNotificationAlert(null)}><AppIcon name="close" size={15} /></button></div>}
-        {showMembers ? (
-          <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} />
+        {showTeams ? (
+          <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} onCreateTeam={() => { setError(""); setModal("team"); }} getTeamShiftStatus={getTeamShiftStatus} onToggleTeamAvailability={toggleTeamAvailability} initialView="teams" />
+        ) : showMembers ? (
+          <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} initialView="members" />
+        ) : showTasks ? (
+          <TasksStatusPage tasks={tasks} status={showTasks} onOpenTask={(task) => { setSelected(task); setShowTasks(null); setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); }} />
         ) : showMap ? (
           <StandaloneMapView
             tasks={tasks}
@@ -2153,24 +2637,19 @@ function Workspace({ user, profile }) {
           <DashboardView
             role={role}
             tasks={tasks}
+            teams={teams}
+            getTeamShiftStatus={getTeamShiftStatus}
+            onToggleTeamAvailability={toggleTeamAvailability}
             selectedTask={selected}
             onOpenTask={(task) => { setSelected(task); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
             onCreateTask={() => { setError(""); setTaskGovernorates([]); if (teams.length) setModal("task"); else setModal("team"); }}
             onManageTeams={() => { setError(""); setModal("teams"); }}
           />
         ) : selected ? (
-          <>
-            <TaskHeader task={selected} role={role} onStatusChange={toggleTaskStatus} onArchive={toggleTaskArchive} onCheckAction={updateCheckStatus} onEdit={beginEditTask} onDelete={(task) => { setDeletingTask(task); setModal("deleteTask"); }} onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }} />
-            <Conversation
-              task={selected}
-              role={role}
-              user={{ ...user, displayName: profile.username || user.email }}
-              messages={messages}
-              onSend={sendMessage}
-              onEditMessage={beginEditMessage}
-              onDeleteMessage={(message) => { setDeletingMessage(message); setModal("deleteMessage"); }}
-            />
-          </>
+          <div className="task-detail-scroll">
+            <TaskHeader task={selected} role={role} onStatusChange={changeTaskStatus} onCheckAction={updateCheckStatus} onEdit={beginEditTask} onDelete={(task) => { setDeletingTask(task); setModal("deleteTask"); }} onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }} />
+            <CaseDetails task={selected} />
+          </div>
         ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal(teams.length ? "task" : "team"); }} />}
       </main>
 
@@ -2197,7 +2676,7 @@ function Workspace({ user, profile }) {
             <label>{t("اختر الفريق")}<select value={taskTeamId} onChange={(event) => setTaskTeamId(event.target.value)} required><option value="">{t("اختر الفريق")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
             <GovernoratePicker values={taskGovernorates} onChange={setTaskGovernorates} />
             <label>{t("المنطقة / الموقع")} <span className="optional">{t("(اختياري)")}</span><input value={taskLocation} onChange={(event) => setTaskLocation(event.target.value)} placeholder={t("مثال: القطاع الشرقي - غرفة التوزيع 4")} maxLength="120" /></label>
-            <label>{t("تفاصيل إضافية")} <span className="optional">{t("(اختياري)")}</span><textarea value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} placeholder={t("أضف وصفاً يساعد الفريق...")} rows="3" maxLength="2000" /></label>
+            <CaseDetailsFields values={taskCaseDetails} onChange={(key, value) => setTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={taskDescription} onDescriptionChange={setTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
             <button className="button button-primary full-width" type="submit">{t("إسناد المهمة للفريق")} <AppIcon name="arrowLeft" size={16} /></button>
           </form>
@@ -2211,7 +2690,8 @@ function Workspace({ user, profile }) {
             <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
             <GovernoratePicker values={editTaskGovernorates} onChange={setEditTaskGovernorates} />
             <label>{t("المنطقة / الموقع")}<input value={editTaskLocation} onChange={(event) => setEditTaskLocation(event.target.value)} maxLength="120" /></label>
-            <label>{t("تفاصيل إضافية")}<textarea value={editTaskDescription} onChange={(event) => setEditTaskDescription(event.target.value)} rows="3" maxLength="2000" /></label>
+            {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
+            <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
             <button className="button button-primary full-width" type="submit">{t("حفظ التعديلات")}</button>
           </form>
@@ -2243,25 +2723,18 @@ function Workspace({ user, profile }) {
       )}
 
       {modal === "team" && (
-        <Modal title={t("إنشاء حساب فريق")} subtitle={t("أدخل اسم مستخدم فريداً وكلمة مرور للحساب المشترك للفريق.")} onClose={closeTeamModal}>
-          {createdTeamCredentials ? (
-            <div className="invite-success">
-              <span className="success-check"><AppIcon name="check" size={18} /></span><strong>{t("الحساب جاهز للفريق")}</strong>
-              <p>{t("احفظ بيانات الدخول الآن. لن يتم حفظ كلمة المرور في قاعدة البيانات.")}</p>
-              <div className="credential-box"><span>{t("اسم المستخدم")}</span><code>{createdTeamCredentials.username}</code><span>{t("كلمة المرور")}</span><code>{createdTeamCredentials.password}</code></div>
-              <button className="button button-soft full-width" onClick={copyTeamCredentials}>{t("نسخ بيانات الدخول")}</button>
-              <button className="text-button" onClick={() => { setCreatedTeamCredentials(null); setModal(""); }}>{t("إغلاق")}</button>
-            </div>
-          ) : (
-            <form className="modal-form" onSubmit={createTeam}>
-              <label>{t("اسم الفريق")}<input value={newTeamName} onChange={(event) => setNewTeamName(event.target.value)} placeholder={t("مثال: فريق الشمال")} maxLength="80" required /></label>
-              <label>{t("اسم المستخدم")}<input value={newTeamUsername} onChange={(event) => setNewTeamUsername(event.target.value)} placeholder="north-crew" autoComplete="off" minLength="3" maxLength="32" required /></label>
-              <label>{t("كلمة مرور الفريق")}<input type="password" value={newTeamPassword} onChange={(event) => setNewTeamPassword(event.target.value)} autoComplete="new-password" minLength="8" required /></label>
-              <div className="invite-info"><AppIcon name="alert" size={16} /><p>{t("الحسابات المشتركة تعني أن أعضاء الفريق يستخدمون نفس بيانات الدخول.")}</p></div>
-              {error && <p className="form-error">{t(error)}</p>}
-              <button className="button button-primary full-width" type="submit">{t("إنشاء حساب فريق")} <AppIcon name="arrowLeft" size={16} /></button>
-            </form>
-          )}
+        <Modal title={t("إضافة فريق")} subtitle={t("أضف فريقاً إلى التشكيل المنشود؛ لا يتطلب إنشاء حساب دخول.")} onClose={closeTeamModal}>
+          <form className="modal-form" onSubmit={createTeam}>
+            <label>{t("اسم الفريق")}<input value={newTeamName} onChange={(event) => setNewTeamName(event.target.value)} placeholder={t("مثال: فريق الشمال")} maxLength="80" required /></label>
+            <label>{t("الشفت")}<select value={newTeamShift} onChange={(event) => setNewTeamShift(event.target.value)}>
+              <option value="morning">{t("الصباحي")}</option>
+              <option value="evening">{t("المسائي")}</option>
+              <option value="night">{t("الفجري")}</option>
+            </select></label>
+            <div className="invite-info"><AppIcon name="alert" size={16} /><p>{t("يتم إدارة أعضاء الفريق من صفحة أعضاء الفرق دون بيانات دخول.")}</p></div>
+            {error && <p className="form-error">{t(error)}</p>}
+            <button className="button button-primary full-width" type="submit">{t("إضافة فريق")} <AppIcon name="arrowLeft" size={16} /></button>
+          </form>
         </Modal>
       )}
 
@@ -2270,25 +2743,28 @@ function Workspace({ user, profile }) {
           <div className="team-management">
             {teams.length === 0 ? <p className="muted">{t("لا توجد فرق مضافة بعد.")}</p> : teams.map((team) => <div className="team-management-row" key={team.id}>
               <span className="crew-avatar"><AppIcon name="users" size={18} /></span>
-              <div className="team-row-copy"><strong>{t(team.name)}</strong><small>@{team.username || t("حساب قديم")} · {tasks.filter((task) => task.teamId === team.id && task.status !== "done").length} {t("مهام مفتوحة")}</small></div>
-              <span className={`team-shift-status ${getTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`}>{t(getTeamShiftStatus(team))}</span>
+              <div className="team-row-copy"><strong>{t(team.name)}</strong><small>{teamMembers.filter((member) => member.teamId === team.id).length} {t("أعضاء")} · {tasks.filter((task) => task.teamId === team.id && task.status !== "done").length} {t("مهام مفتوحة")}</small></div>
+              <button type="button" className={`team-shift-status ${getTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`} onClick={() => toggleTeamAvailability(team)} title={t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))} aria-label={`${t("تغيير حالة الفريق")}: ${t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))}`}>{t(getTeamShiftStatus(team))}</button>
               <details className="actions-dropdown"><summary aria-label={t("إجراءات الفريق")}><AppIcon name="more" size={18} /></summary><div>
-                <button onClick={() => toggleTeamAvailability(team)}>{t(team.availability === "off-shift" ? "إضافة الفريق إلى المناوبة" : "إخراج الفريق من المناوبة")}</button>
+                <button onClick={() => toggleTeamAvailability(team)}>{t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))}</button>
                 <button onClick={() => beginEditTeam(team)}>{t("تعديل الفريق")}</button>
                 <button className="danger-action" onClick={() => beginDeleteTeam(team)}>{t("حذف الفريق")}</button>
               </div></details>
             </div>)}
-            <button className="button button-primary full-width" onClick={() => { setNewTeamName(""); setNewTeamUsername(""); setNewTeamPassword(""); setCreatedTeamCredentials(null); setError(""); setModal("team"); }}><AppIcon name="userPlus" size={17} />{t("إنشاء حساب فريق")}</button>
+            <button className="button button-primary full-width" onClick={() => { setNewTeamName(""); setError(""); setModal("team"); }}><AppIcon name="userPlus" size={17} />{t("إضافة فريق")}</button>
           </div>
         </Modal>
       )}
 
       {modal === "editTeam" && editingTeam && (
-        <Modal title={t("تعديل الفريق")} subtitle={t("تحديث اسم الفريق أو تعيين كلمة مرور مشتركة جديدة.")} onClose={() => { setModal(""); setResetTeamPassword(""); setEditingTeam(null); }}>
+        <Modal title={t("تعديل الفريق")} subtitle={t("تحديث اسم الفريق في التشكيل.")} onClose={() => { setModal(""); setEditingTeam(null); }}>
           <form className="modal-form" onSubmit={saveTeamChanges}>
             <label>{t("اسم الفريق")}<input value={editTeamName} onChange={(event) => setEditTeamName(event.target.value)} maxLength="80" required /></label>
-            <label>{t("اسم المستخدم")}<input value={editingTeam.username || t("حساب قديم")} disabled /></label>
-            <label>{t("كلمة مرور جديدة")}<input type="password" value={resetTeamPassword} onChange={(event) => setResetTeamPassword(event.target.value)} autoComplete="new-password" minLength="8" placeholder={t("اتركها فارغة دون تغيير")} /></label>
+            <label>{t("الشفت")}<select value={editTeamShift} onChange={(event) => setEditTeamShift(event.target.value)}>
+              <option value="morning">{t("الصباحي")}</option>
+              <option value="evening">{t("المسائي")}</option>
+              <option value="night">{t("الفجري")}</option>
+            </select></label>
             {error && <p className="form-error">{t(error)}</p>}
             <button className="button button-primary full-width" type="submit">{t("حفظ التعديلات")}</button>
           </form>
@@ -2317,12 +2793,12 @@ function Workspace({ user, profile }) {
 function DemoWorkspace() {
   const t = useCopy();
   const { language } = usePreferences();
-  const [role, setRole] = useState("supervisor");
+  const role = "supervisor";
   const [demoDisplayName, setDemoDisplayName] = useState("مسؤول الشفت");
   const [demoProfileName, setDemoProfileName] = useState("");
   const [teams, setTeams] = useState([
-    { id: "east", name: "فريق الشرق", availability: "on-shift" },
-    { id: "west", name: "فريق الغرب", availability: "off-shift" },
+    { id: "east", name: "فريق الشرق", availability: "on-shift", shift: "morning" },
+    { id: "west", name: "فريق الغرب", availability: "off-shift", shift: "evening" },
   ]);
   const [demoMembers, setDemoMembers] = useState([
     { id: "member-east-1", teamId: "east", name: "أحمد علي", phone: "0770 123 4567", responsibility: "فني شبكات", employeeId: "TECH-014", username: "ahmed.ali" },
@@ -2331,13 +2807,15 @@ function DemoWorkspace() {
   ]);
   const [demoTeamId, setDemoTeamId] = useState("east");
   const [tasks, setTasks] = useState([
-    { id: "FO-24018", taskNumber: "FO-24018", title: "فحص الموقع - القطاع الشرقي", description: "التأكد من جاهزية الموقع وتوثيق الملاحظات قبل نهاية الجولة.", location: "بغداد - غرفة التوزيع 4", governorates: ["BG"], governorate: "BG", teamId: "east", teamName: "فريق الشرق", status: "open", checkStatus: "none", createdAt: null },
-    { id: "FO-24021", taskNumber: "FO-24021", title: "استلام المعدات للموقع", description: "مراجعة الكميات ومشاركة أي نواقص مع المتابع.", location: "البصرة - موقع 12", governorates: ["BS"], governorate: "BS", teamId: "west", teamName: "فريق الغرب", status: "done", checkStatus: "none", createdAt: null },
+    { id: "FO-24018", taskNumber: "FO-24018", title: "فحص الموقع - القطاع الشرقي", description: "FNS0164 fat 27 down", src: "P-26111606463127206", fmsId: "https://msp.go2field.iq/task/6753d7cf-ca1f-48d3-b268-20b79b0cc630", department: "Support", region: "Nasria", fdt: "FNS0164", efu: "10", maintenance: "WNS", caseStatus: "Last Mile", escalation: "Open", grRequest: "no", caseCreatedAt: "2026-11-16T09:53:49+03:00", location: "ذي قار - غرفة التوزيع 4", governorates: ["DQ"], governorate: "DQ", teamId: "east", teamName: "فريق الشرق", status: "open", checkStatus: "none", createdAt: new Date(Date.now() - (1 * 60 * 60 * 1000 + 50 * 60 * 1000 + 17000)).toISOString() },
+    { id: "FO-24021", taskNumber: "FO-24021", title: "استلام المعدات للموقع", description: "مراجعة الكميات ومشاركة أي نواقص مع المتابع.", location: "البصرة - موقع 12", governorates: ["BS"], governorate: "BS", teamId: "west", teamName: "فريق الغرب", status: "done", closedAt: new Date(Date.now() - 35 * 60 * 1000).toISOString(), checkStatus: "none", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
   ]);
   const [selectedId, setSelectedId] = useState("FO-24018");
   const [showDashboard, setShowDashboard] = useState(true);
   const [showMap, setShowMap] = useState(false);
+  const [showTeams, setShowTeams] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showTasks, setShowTasks] = useState(null);
   const [messagesByTask, setMessagesByTask] = useState({
     "FO-24018": [
       { id: "sample-1", senderId: "demo-supervisor", role: "supervisor", text: "صباح الخير، يرجى البدء بفحص القطاع الشرقي وإرسال التحديث هنا.", createdAt: null },
@@ -2354,16 +2832,17 @@ function DemoWorkspace() {
   const [taskLocation, setTaskLocation] = useState("");
   const [taskGovernorates, setTaskGovernorates] = useState([]);
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskCaseDetails, setTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [taskTeamId, setTaskTeamId] = useState("east");
   const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamUsername, setNewTeamUsername] = useState("");
-  const [newTeamPassword, setNewTeamPassword] = useState("");
-  const [createdTeamCredentials, setCreatedTeamCredentials] = useState(null);
+  const [newTeamShift, setNewTeamShift] = useState("morning");
   const [error, setError] = useState("");
   const [editingTask, setEditingTask] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
+  const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [editTaskLocation, setEditTaskLocation] = useState("");
   const [editTaskGovernorates, setEditTaskGovernorates] = useState([]);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
@@ -2372,10 +2851,16 @@ function DemoWorkspace() {
   const user = { uid: `demo-${role}`, email: role === "supervisor" ? "supervisor@wasla.demo" : "field@wasla.demo" };
   const getDemoTeamShiftStatus = (team) => {
     if (team.availability === "off-shift") return "خارج المناوبة";
-    return tasks.some((task) => task.teamId === team.id && task.status !== "done")
+    if (team.availability === "busy") return "مشغول";
+    if (team.availability === "ready") return "جاهز";
+    return tasks.some((task) => task.teamId === team.id && task.status === "open")
       ? "مشغول"
-      : "متاح بالمناوبة";
+      : "جاهز";
   };
+  function toggleDemoTeamAvailability(team) {
+    const availability = getNextTeamAvailability(getDemoTeamShiftStatus(team));
+    setTeams((current) => current.map((item) => item.id === team.id ? { ...item, availability } : item));
+  }
 
   useEffect(() => {
     if (selected?.id !== selectedId) setSelectedId(selected?.id || "");
@@ -2383,6 +2868,7 @@ function DemoWorkspace() {
 
   function createDemoTask(event) {
     event.preventDefault();
+    setError("");
     const number = taskNumber.trim().toUpperCase();
     if (!/^[A-Z0-9_-]{1,40}$/.test(number)) {
       setError("استخدم أرقاماً أو أحرفاً إنجليزية أو - و _ فقط لرقم المهمة.");
@@ -2401,7 +2887,14 @@ function DemoWorkspace() {
       setError("اختر محافظة واحدة على الأقل.");
       return;
     }
-    const task = { id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", archived: false, checkStatus: "none", createdAt: null };
+    let caseDetails;
+    try {
+      caseDetails = normalizeTaskCaseDetails(taskCaseDetails);
+    } catch (createError) {
+      setError(friendlyError(createError));
+      return;
+    }
+    const task = { id: number, taskNumber: number, title: taskTitle.trim(), description: taskDescription.trim(), ...caseDetails, location: taskLocation.trim(), governorates: taskGovernorates, governorate: taskGovernorates[0], teamId: team.id, teamName: team.name, status: "open", checkStatus: "none", createdAt: new Date().toISOString() };
     setTasks((current) => [task, ...current]);
     setMessagesByTask((current) => ({ ...current, [number]: [] }));
     setSelectedId(number);
@@ -2413,6 +2906,7 @@ function DemoWorkspace() {
     setTaskLocation("");
     setTaskGovernorates([]);
     setTaskDescription("");
+    setTaskCaseDetails(EMPTY_CASE_DETAILS);
     setError("");
     setModal("");
   }
@@ -2421,6 +2915,8 @@ function DemoWorkspace() {
     setEditingTask(task);
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
+    setEditTaskClosedAt(toDateTimeInput(task.closedAt));
+    setEditTaskCaseDetails(getTaskCaseFormValues(task));
     setEditTaskLocation(task.location || "");
     setEditTaskGovernorates(getTaskGovernorateCodes(task));
     setEditTaskTeamId(task.teamId);
@@ -2439,10 +2935,21 @@ function DemoWorkspace() {
       setError("اختر محافظة واحدة على الأقل.");
       return;
     }
+    let caseDetails;
+    let closedAt;
+    try {
+      caseDetails = normalizeTaskCaseDetails(editTaskCaseDetails);
+      closedAt = editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null;
+    } catch (saveError) {
+      setError(friendlyError(saveError));
+      return;
+    }
     setTasks((current) => current.map((item) => item.id === editingTask.id ? {
       ...item,
       title: editTaskTitle.trim(),
       description: editTaskDescription.trim(),
+      closedAt,
+      ...caseDetails,
       location: editTaskLocation.trim(),
       governorates: editTaskGovernorates,
       governorate: editTaskGovernorates[0],
@@ -2469,31 +2976,17 @@ function DemoWorkspace() {
     event.preventDefault();
     const name = newTeamName.trim();
     if (!name) return;
-    let username;
-    try {
-      username = normalizeUsername(newTeamUsername);
-      if (newTeamPassword.length < 8) throw new Error("كلمة المرور يجب أن تكون 8 أحرف على الأقل.");
-    } catch (validationError) {
-      setError(friendlyError(validationError));
-      return;
-    }
     if (teams.some((team) => team.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
       setError("يوجد فريق بهذا الاسم بالفعل.");
       return;
     }
-    if (teams.some((team) => team.username === username)) {
-      setError("اسم المستخدم مستخدم بالفعل. اختر اسماً آخر.");
-      return;
-    }
-    const team = { id: `crew-${Date.now()}`, name, username, availability: "on-shift" };
+    const team = { id: `crew-${Date.now()}`, name, availability: "ready", shift: newTeamShift };
     setTeams((current) => [...current, team]);
     setTaskTeamId(team.id);
     setDemoTeamId(team.id);
-    setCreatedTeamCredentials({ name, username, password: newTeamPassword });
     setNewTeamName("");
-    setNewTeamUsername("");
-    setNewTeamPassword("");
     setError("");
+    setModal("");
   }
 
   function createDemoMember(member) {
@@ -2529,7 +3022,6 @@ function DemoWorkspace() {
 
   function closeDemoTeamModal() {
     setModal("");
-    setNewTeamPassword("");
     setCreatedTeamCredentials(null);
   }
 
@@ -2552,33 +3044,40 @@ function DemoWorkspace() {
       <Sidebar
         role={role}
         email={user.email}
-        displayName={role === "supervisor" ? demoDisplayName : ""}
+        displayName={role === "supervisor" ? t(demoDisplayName) : ""}
         teamName={role === "team" ? teams.find((team) => team.id === demoTeamId)?.name : ""}
-        selected={showDashboard || showMap || showMembers ? null : selected}
+        selected={showDashboard || showMap || showTeams || showMembers ? null : selected}
         tasks={visibleTasks}
         showDashboard={showDashboard}
         showMap={showMap}
+        showTeams={showTeams}
         showMembers={showMembers}
-        onShowDashboard={() => { setShowMap(false); setShowMembers(false); setShowDashboard(true); }}
-        onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }}
-        onShowMembers={() => { setShowDashboard(false); setShowMap(false); setShowMembers(true); }}
+        showTasks={showTasks}
+        onShowDashboard={() => { setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(null); setShowDashboard(true); }}
+        onShowMap={() => { setShowDashboard(false); setShowTeams(false); setShowMembers(false); setShowTasks(null); setShowMap(true); }}
+        onShowTeams={() => { setShowDashboard(false); setShowMap(false); setShowMembers(false); setShowTasks(null); setShowTeams(true); }}
+        onShowMembers={() => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowTasks(null); setShowMembers(true); }}
+        onShowTasks={(status) => { setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); setShowTasks(status); }}
         onSelect={(task) => { setSelectedId(task.id); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
         onLogout={() => { window.location.href = window.location.pathname; }}
         onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }}
         onCreateTeam={() => { setError(""); setCreatedTeamCredentials(null); setModal("team"); }}
         onManageTeams={() => { setError(""); setModal("teams"); }}
-        onEditProfile={() => { setDemoProfileName(demoDisplayName); setModal("profile"); }}
+        onEditProfile={() => { setDemoProfileName(t(demoDisplayName)); setModal("profile"); }}
         pendingCheckTasks={tasks.filter((task) => task.checkStatus === "requested")}
         demoTeams={teams}
         demoTeamId={demoTeamId}
         onDemoTeamChange={setDemoTeamId}
-        onDemoRoleChange={() => { setShowMembers(false); setRole(role === "supervisor" ? "team" : "supervisor"); }}
         onOpenTask={(task) => { setSelectedId(task.id); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
       />
       <main className="main-panel">
         <div className="demo-banner"><span><i /> {t("معاينة محلية — الرسائل والتغييرات هنا للتجربة فقط")}</span></div>
-        {showMembers ? (
-          <TeamMembersPage teams={teams} members={demoMembers} onCreateMember={createDemoMember} onUpdateMember={updateDemoMember} onDeleteMember={deleteDemoMember} />
+        {showTeams ? (
+          <TeamMembersPage teams={teams} members={demoMembers} onCreateMember={createDemoMember} onUpdateMember={updateDemoMember} onDeleteMember={deleteDemoMember} onCreateTeam={() => { setError(""); setModal("team"); }} getTeamShiftStatus={getDemoTeamShiftStatus} onToggleTeamAvailability={toggleDemoTeamAvailability} initialView="teams" />
+        ) : showMembers ? (
+          <TeamMembersPage teams={teams} members={demoMembers} onCreateMember={createDemoMember} onUpdateMember={updateDemoMember} onDeleteMember={deleteDemoMember} initialView="members" />
+        ) : showTasks ? (
+          <TasksStatusPage tasks={visibleTasks} status={showTasks} onOpenTask={(task) => { setSelectedId(task.id); setShowTasks(null); setShowDashboard(false); setShowMap(false); setShowTeams(false); setShowMembers(false); }} />
         ) : showMap ? (
           <StandaloneMapView
             tasks={visibleTasks}
@@ -2588,25 +3087,27 @@ function DemoWorkspace() {
           <DashboardView
             role={role}
             tasks={visibleTasks}
+            teams={teams}
+            getTeamShiftStatus={getDemoTeamShiftStatus}
+            onToggleTeamAvailability={toggleDemoTeamAvailability}
             selectedTask={selected}
             onOpenTask={(task) => { setSelectedId(task.id); setShowMap(false); setShowMembers(false); setShowDashboard(false); }}
             onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }}
             onManageTeams={() => { setError(""); setModal("teams"); }}
           />
         ) : selected ? (
-          <>
+          <div className="task-detail-scroll">
             <TaskHeader
               task={selected}
               role={role}
               onCheckAction={updateDemoCheckStatus}
-              onStatusChange={(task) => setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status: item.status === "done" ? "open" : "done", archived: false } : item))}
-              onArchive={(task) => setTasks((current) => current.map((item) => item.id === task.id && item.status === "done" ? { ...item, archived: !item.archived } : item))}
+              onStatusChange={(task, status) => setTasks((current) => current.map((item) => item.id === task.id ? { ...item, status, closedAt: status === "done" ? new Date().toISOString() : null } : item))}
               onEdit={beginEditDemoTask}
               onDelete={(task) => { setDeletingTask(task); setModal("deleteTask"); }}
               onShowMap={() => { setShowDashboard(false); setShowMembers(false); setShowMap(true); }}
             />
-            <Conversation task={selected} role={role} user={user} messages={messagesByTask[selected.id] || []} onSend={sendDemoMessage} />
-          </>
+            <CaseDetails task={selected} />
+          </div>
         ) : <EmptyTask role={role} onCreateTask={() => { setError(""); setTaskGovernorates([]); setModal("task"); }} />}
         {error && <div className="global-error" role="alert">{t(error)}<button onClick={() => setError("")}>×</button></div>}
       </main>
@@ -2629,7 +3130,7 @@ function DemoWorkspace() {
             <label>{t("اختر الفريق")}<select value={taskTeamId} onChange={(event) => setTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getDemoTeamShiftStatus(team))}</option>)}</select></label>
             <GovernoratePicker values={taskGovernorates} onChange={setTaskGovernorates} />
             <label>{t("المنطقة / الموقع")} <span className="optional">{t("(اختياري)")}</span><input value={taskLocation} onChange={(event) => setTaskLocation(event.target.value)} placeholder={t("مثال: القطاع الشرقي - غرفة التوزيع 4")} /></label>
-            <label>{t("تفاصيل إضافية")} <span className="optional">{t("(اختياري)")}</span><textarea value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} placeholder={t("أضف وصفاً يساعد الفريق...")} rows="3" /></label>
+            <CaseDetailsFields values={taskCaseDetails} onChange={(key, value) => setTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={taskDescription} onDescriptionChange={setTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
             <button className="button button-primary full-width" type="submit">{t("إسناد المهمة للفريق")} <AppIcon name="arrowLeft" size={16} /></button>
           </form>
@@ -2643,7 +3144,8 @@ function DemoWorkspace() {
             <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)} required>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}</select></label>
             <GovernoratePicker values={editTaskGovernorates} onChange={setEditTaskGovernorates} />
             <label>{t("المنطقة / الموقع")}<input value={editTaskLocation} onChange={(event) => setEditTaskLocation(event.target.value)} maxLength="120" /></label>
-            <label>{t("تفاصيل إضافية")}<textarea value={editTaskDescription} onChange={(event) => setEditTaskDescription(event.target.value)} rows="3" maxLength="2000" /></label>
+            {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
+            <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
             <button className="button button-primary full-width" type="submit">{t("حفظ التعديلات")}</button>
           </form>
@@ -2658,25 +3160,18 @@ function DemoWorkspace() {
       )}
 
       {modal === "team" && (
-        <Modal title={t("إنشاء حساب فريق")} subtitle={t("أدخل اسم مستخدم فريداً وكلمة مرور للحساب المشترك للفريق.")} onClose={closeDemoTeamModal}>
-          {createdTeamCredentials ? (
-            <div className="invite-success">
-              <span className="success-check"><AppIcon name="check" size={18} /></span><strong>{t("الحساب جاهز للفريق")}</strong>
-              <p>{t("احفظ بيانات الدخول الآن. لن يتم حفظ كلمة المرور في قاعدة البيانات.")}</p>
-              <div className="credential-box"><span>{t("اسم المستخدم")}</span><code>{createdTeamCredentials.username}</code><span>{t("كلمة المرور")}</span><code>{createdTeamCredentials.password}</code></div>
-              <button className="button button-soft full-width" onClick={() => navigator.clipboard.writeText(`${createdTeamCredentials.username}\n${createdTeamCredentials.password}`).catch(() => setError("تعذر النسخ. انسخ بيانات الدخول يدوياً."))}>{t("نسخ بيانات الدخول")}</button>
-              <button className="text-button" onClick={() => { setCreatedTeamCredentials(null); setModal(""); }}>{t("إغلاق")}</button>
-            </div>
-          ) : (
-            <form className="modal-form" onSubmit={createDemoTeam}>
-              <label>{t("اسم الفريق")}<input value={newTeamName} onChange={(event) => setNewTeamName(event.target.value)} placeholder={t("مثال: فريق الشمال")} maxLength="80" required /></label>
-              <label>{t("اسم المستخدم")}<input value={newTeamUsername} onChange={(event) => setNewTeamUsername(event.target.value)} placeholder="north-crew" autoComplete="off" minLength="3" maxLength="32" required /></label>
-              <label>{t("كلمة مرور الفريق")}<input type="password" value={newTeamPassword} onChange={(event) => setNewTeamPassword(event.target.value)} autoComplete="new-password" minLength="8" required /></label>
-              <div className="invite-info"><AppIcon name="alert" size={16} /><p>{t("الحسابات المشتركة تعني أن أعضاء الفريق يستخدمون نفس بيانات الدخول.")}</p></div>
-              {error && <p className="form-error">{t(error)}</p>}
-              <button className="button button-primary full-width" type="submit">{t("إنشاء حساب فريق")} <AppIcon name="arrowLeft" size={16} /></button>
-            </form>
-          )}
+        <Modal title={t("إضافة فريق")} subtitle={t("أضف فريقاً إلى التشكيل؛ لا يتطلب إنشاء حساب دخول.")} onClose={closeDemoTeamModal}>
+          <form className="modal-form" onSubmit={createDemoTeam}>
+            <label>{t("اسم الفريق")}<input value={newTeamName} onChange={(event) => setNewTeamName(event.target.value)} placeholder={t("مثال: فريق الشمال")} maxLength="80" required /></label>
+            <label>{t("الشفت")}<select value={newTeamShift} onChange={(event) => setNewTeamShift(event.target.value)}>
+              <option value="morning">{t("الصباحي")}</option>
+              <option value="evening">{t("المسائي")}</option>
+              <option value="night">{t("الفجري")}</option>
+            </select></label>
+            <div className="invite-info"><AppIcon name="alert" size={16} /><p>{t("يتم تسجيل أعضاء الفريق وبياناتهم من صفحة أعضاء الفرق.")}</p></div>
+            {error && <p className="form-error">{t(error)}</p>}
+            <button className="button button-primary full-width" type="submit">{t("إضافة فريق")} <AppIcon name="arrowLeft" size={16} /></button>
+          </form>
         </Modal>
       )}
 
@@ -2685,11 +3180,11 @@ function DemoWorkspace() {
           <div className="team-management">
             {teams.map((team) => <div className="team-management-row" key={team.id}>
               <span className="crew-avatar"><AppIcon name="users" size={18} /></span>
-              <div className="team-row-copy"><strong>{t(team.name)}</strong><small>@{team.username || t("حساب قديم")} · {tasks.filter((task) => task.teamId === team.id && task.status !== "done").length} {t("مهام مفتوحة")}</small></div>
-              <span className={`team-shift-status ${getDemoTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getDemoTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`}>{t(getDemoTeamShiftStatus(team))}</span>
-              <button className="team-shift-toggle" onClick={() => setTeams((current) => current.map((item) => item.id === team.id ? { ...item, availability: item.availability === "off-shift" ? "on-shift" : "off-shift" } : item))}>{t(team.availability === "off-shift" ? "إضافة الفريق إلى المناوبة" : "إخراج الفريق من المناوبة")}</button>
+              <div className="team-row-copy"><strong>{t(team.name)}</strong><small>{demoMembers.filter((member) => member.teamId === team.id).length} {t("أعضاء")} · {tasks.filter((task) => task.teamId === team.id && task.status !== "done").length} {t("مهام مفتوحة")}</small></div>
+              <button type="button" className={`team-shift-status ${getDemoTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getDemoTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`} onClick={() => toggleDemoTeamAvailability(team)} title={t(getNextTeamAvailabilityLabel(getDemoTeamShiftStatus(team)))} aria-label={`${t("تغيير حالة الفريق")}: ${t(getNextTeamAvailabilityLabel(getDemoTeamShiftStatus(team)))}`}>{t(getDemoTeamShiftStatus(team))}</button>
+              <button className="team-shift-toggle" onClick={() => toggleDemoTeamAvailability(team)}>{t(getNextTeamAvailabilityLabel(getDemoTeamShiftStatus(team)))}</button>
             </div>)}
-            <button className="button button-primary full-width" onClick={() => { setNewTeamName(""); setNewTeamUsername(""); setNewTeamPassword(""); setCreatedTeamCredentials(null); setError(""); setModal("team"); }}><AppIcon name="userPlus" size={17} />{t("إنشاء حساب فريق")}</button>
+            <button className="button button-primary full-width" onClick={() => { setNewTeamName(""); setError(""); setModal("team"); }}><AppIcon name="userPlus" size={17} />{t("إضافة فريق")}</button>
           </div>
         </Modal>
       )}
@@ -2726,8 +3221,8 @@ function AppContent() {
         }
         clearTimeout(missingProfileTimeout);
         const profileData = profileSnapshot.data();
-        if (profileData.role === "team" && (!profileData.teamId || !profileData.teamName)) {
-          setProfileError("حسابك غير مرتبط بفريق ميداني. تواصل مع مسؤول الشفت لتحديث صلاحياتك.");
+        if (profileData.role !== "supervisor") {
+          setProfileError("هذه اللوحة متاحة لمسؤول الشفت فقط.");
         } else {
           setProfile(profileData);
           setProfileError("");
@@ -2747,7 +3242,7 @@ function AppContent() {
   if (!isSupabaseConfigured && new URLSearchParams(window.location.search).get("demo") === "1") return <DemoWorkspace />;
   if (!isSupabaseConfigured) return <ConfigNotice />;
   if (user === undefined || (user && profile === undefined && !profileError)) {
-    return <main className="loading-screen"><span className="spinner" /><p>جارٍ تجهيز مساحة العمل...</p></main>;
+    return <main className="loading-screen"><span className="spinner" /><p>{t("جارٍ تجهيز مساحة العمل...")}</p></main>;
   }
   if (user && profileError) {
     return <main className="loading-screen"><div className="access-error"><span>!</span><h2>{t("تعذر فتح مساحة العمل")}</h2><p>{t(profileError)}</p><button className="button button-soft" onClick={() => signOut(auth)}>{t("تسجيل الخروج")}</button></div></main>;

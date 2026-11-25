@@ -16,6 +16,7 @@ create table public.teams (
   name text not null check (length(name) between 1 and 80),
   username text not null unique check (username ~ '^[a-z0-9._-]{3,32}$'),
   availability text not null default 'on-shift' check (availability in ('on-shift', 'off-shift')),
+  shift text not null default 'morning' check (shift in ('morning', 'evening', 'night')),
   account_uid uuid unique references auth.users(id) on delete set null,
   created_by uuid references auth.users(id),
   created_at timestamptz not null default now()
@@ -29,6 +30,17 @@ create table public.tasks (
   task_number text not null unique check (task_number ~ '^[A-Z0-9_-]{1,40}$'),
   title text not null check (length(title) between 1 and 160),
   description text not null default '' check (length(description) <= 2000),
+  src text not null default '' check (length(src) <= 100),
+  fms_id text not null default '' check (length(fms_id) <= 2048 and (fms_id = '' or fms_id ~ '^https://')),
+  department text not null default '' check (length(department) <= 120),
+  region text not null default '' check (length(region) <= 120),
+  fdt text not null default '' check (length(fdt) <= 120),
+  efu text not null default '0' check (length(efu) <= 80),
+  maintenance text not null default '' check (length(maintenance) <= 120),
+  case_status text not null default '' check (length(case_status) <= 120),
+  escalation text not null default '' check (length(escalation) <= 120),
+  gr_request text not null default 'no' check (gr_request in ('yes', 'no')),
+  case_created_at timestamptz,
   location text not null default '' check (length(location) <= 120),
   governorates text[] not null check (
     cardinality(governorates) between 1 and 18
@@ -37,7 +49,7 @@ create table public.tasks (
   governorate text not null check (governorate = governorates[1]),
   team_id uuid not null references public.teams(id),
   team_name text not null,
-  status text not null default 'open' check (status in ('open', 'done')),
+  status text not null default 'open' check (status in ('open', 'onHold', 'done')),
   archived boolean not null default false,
   check_status text not null default 'none' check (check_status in ('none', 'requested', 'checked')),
   check_requested_by uuid references auth.users(id),
@@ -47,7 +59,8 @@ create table public.tasks (
   check_viewed_by uuid references auth.users(id),
   check_viewed_at timestamptz,
   created_by uuid not null references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  closed_at timestamptz
 );
 
 create table public.messages (
@@ -130,22 +143,30 @@ begin
     if new.team_name <> (select name from public.teams where id = new.team_id) then
       raise exception 'Task team name must match its assigned team';
     end if;
-    if (to_jsonb(new) - array['status', 'archived'])
-      = (to_jsonb(old) - array['status', 'archived'])
-      and new.status in ('open', 'done')
+    if (to_jsonb(new) - array['status', 'archived', 'closed_at'])
+      = (to_jsonb(old) - array['status', 'archived', 'closed_at'])
+      and new.status in ('open', 'onHold', 'done')
+      and (
+        (new.status = old.status and new.closed_at is not distinct from old.closed_at)
+        or (new.status <> old.status and (
+          (new.status = 'done' and new.closed_at is not null)
+          or (new.status <> 'done' and new.closed_at is null)
+        ))
+      )
       and (not new.archived or new.status = 'done')
       and (new.archived = old.archived or old.status = 'done' or new.archived = false) then
       return new;
     end if;
-    if (to_jsonb(new) - array['title', 'description', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status'])
-      = (to_jsonb(old) - array['title', 'description', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status'])
+    if (to_jsonb(new) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
+      = (to_jsonb(old) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
       and length(new.title) between 1 and 160
       and length(new.description) <= 2000
       and length(new.location) <= 120
       and cardinality(new.governorates) between 1 and 18
       and new.governorates <@ array['AN', 'KR', 'NJ', 'BB', 'BG', 'QA', 'MU', 'DQ', 'BS', 'MY', 'WA', 'NI', 'DH', 'SD', 'DY', 'KI', 'ER', 'SU']::text[]
       and new.governorate = new.governorates[1]
-      and new.status in ('open', 'done') then
+      and new.status in ('open', 'onHold', 'done')
+      and ((new.status = 'done' and new.closed_at is not null) or (new.status <> 'done' and new.closed_at is null)) then
       return new;
     end if;
     if (to_jsonb(new) - array['check_status', 'check_checked_by', 'check_checked_at'])

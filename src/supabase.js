@@ -277,7 +277,7 @@ export async function updateDoc(reference, changes) {
   const id = path[path.length - 1];
   const row = encodeRecord(changes);
   if (table === "messages") row.task_id = path[1];
-  if (table === "members") row.team_id = path[1];
+  if (table === "members" && !Object.prototype.hasOwnProperty.call(changes, "teamId")) row.team_id = path[1];
   let request = supabase.from(table).update(row).eq("id", id);
   if (table === "messages") request = request.eq("task_id", path[1]);
   if (table === "members") request = request.eq("team_id", path[1]);

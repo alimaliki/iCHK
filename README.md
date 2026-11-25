@@ -8,6 +8,7 @@
 2. من **Project Settings → API** انسخ Project URL و`anon`/publishable key إلى `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
 3. أضف القيمتين نفسيهما إلى `SUPABASE_URL`، وانسخ `service_role` key إلى `SUPABASE_SERVICE_ROLE_KEY`. المفتاح السري للخادم فقط؛ لا تضعه في متغير يبدأ بـ `VITE_` ولا تشاركه.
 4. من **SQL Editor** شغّل محتوى [`supabase/schema.sql`](./supabase/schema.sql).
+   للمشاريع الموجودة، شغّل [`supabase/migrate_case_details.sql`](./supabase/migrate_case_details.sql) لتحديث الفرق والمهام وسياسة التعديل، بما فيها الشفت وتفاصيل الكيس ووقت الإغلاق، دون إعادة إنشاء الجداول.
 5. من **Authentication → Providers** فعّل Email. من إعدادات Authentication أضف نطاق Vercel ضمن **Site URL / Redirect URLs** بعد النشر.
 6. أنشئ حساب مسؤول من **Authentication → Users**، ثم نفّذ الاستعلام التالي في SQL Editor مع استبدال البريد:
 
@@ -33,7 +34,7 @@ npm run dev
 
 ## النشر على GitHub وVercel
 
-1. ارفع ملفات المشروع إلى مستودع GitHub خاص.
+1. ارفع ملفات المشروع إلى مستودع GitHub مناسب لمتطلبات الخصوصية؛ المستودع العام يجعل الشيفرة مرئية للجميع.
 2. في Vercel اختر **Add New → Project** واربط المستودع. يستخدم Vercel `npm run build` ومجلد `dist`.
 3. أضف متغيرات البيئة الأربعة أعلاه من **Project Settings → Environment Variables**. عرّف `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY` للـ Production وPreview وDevelopment؛ وعرّف `SUPABASE_URL` و`SUPABASE_SERVICE_ROLE_KEY` للخادم فقط.
 4. أعد النشر بعد إضافة المتغيرات. عمليات الدفع اللاحقة إلى GitHub ستطلق نشر Vercel تلقائياً.
