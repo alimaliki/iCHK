@@ -1612,7 +1612,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(250px, .9fr) minmax(300px, 1.1fr) minmax(220px, .75fr);
   align-items: stretch;
   gap: 15px;
 }
@@ -1827,10 +1827,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-empty-state .app-icon { color: #20a883; }
 .dashboard-cases-footer { display: flex; justify-content: space-between; padding-top: 11px; color: var(--muted-ink); font-size: 10px; }
 
-.dashboard-quick-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 8px; }
-.dashboard-quick-actions .dashboard-panel-heading,
-.dashboard-quick-actions .dashboard-shift-switcher,
-.dashboard-quick-actions .dashboard-shift-teams { grid-column: 1 / -1; }
+.dashboard-quick-actions { display: flex; flex-direction: column; }
 .dashboard-shift-switcher { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 0 8px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--app-canvas); }
 .dashboard-shift-switcher button { min-width: 0; min-height: 30px; padding: 0 3px; border: 1px solid transparent; border-radius: 7px; color: var(--muted-ink); background: transparent; font-size: 9px; font-weight: 600; white-space: nowrap; }
 .dashboard-shift-switcher button:hover { color: var(--ink); background: var(--surface); }
@@ -1926,13 +1923,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 :root[data-theme="light"] .dashboard-action.primary:hover { background: linear-gradient(110deg, #06788b, #07546f); }
 
 @media (max-width: 1120px) {
-  .dashboard-grid { grid-template-columns: minmax(300px, .9fr) minmax(320px, 1.1fr); }
-  .dashboard-quick-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 8px; }
-  .dashboard-quick-actions .dashboard-panel-heading { grid-column: 1 / -1; }
-  .dashboard-shift-switcher,
-  .dashboard-shift-teams { grid-column: 1 / -1; }
-  .dashboard-action { margin: 0; }
-  .dashboard-quick-note { display: none; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1.1fr) minmax(245px, .8fr); }
+  .dashboard-locations { grid-column: 1; grid-row: 1; }
+  .dashboard-cases { grid-column: 1; grid-row: 2; }
+  .dashboard-quick-actions { grid-column: 2; grid-row: 1 / span 2; }
+  .dashboard-action { margin: 0 0 8px; }
 }
 
 @media (max-width: 760px) {
@@ -1948,9 +1943,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .dashboard-stat-copy strong { font-size: 21px; }
   .dashboard-stat-copy small { font-size: 10px; }
   .dashboard-grid { grid-template-columns: minmax(0, 1fr); gap: 11px; }
+  .dashboard-locations,
+  .dashboard-cases,
+  .dashboard-quick-actions { grid-column: auto; grid-row: auto; }
   .dashboard-map-art { height: clamp(260px, 70vw, 340px); }
-  .dashboard-quick-actions { grid-column: auto; display: flex; flex-direction: column; }
-  .dashboard-quick-actions .dashboard-panel-heading { grid-column: auto; }
+  .dashboard-quick-actions { display: flex; flex-direction: column; }
   .dashboard-action { margin-bottom: 7px; }
   .dashboard-quick-note { display: flex; }
   .task-map-focus { max-width: none; }
