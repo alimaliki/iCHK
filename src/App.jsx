@@ -1457,7 +1457,7 @@ function TasksStatusPage({ tasks, status, onOpenTask }) {
   );
 }
 
-function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDeleteMember, onCreateTeam, getTeamShiftStatus, onToggleTeamAvailability, initialView = "teams" }) {
+function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDeleteMember, onCreateTeam, onEditTeam, onDeleteTeam, getTeamShiftStatus, onToggleTeamAvailability, initialView = "teams" }) {
   const t = useCopy();
   const [selectedShift, setSelectedShift] = useState("all");
   const [selectedTeamId, setSelectedTeamId] = useState("all");
@@ -1577,9 +1577,20 @@ function TeamMembersPage({ teams, members, onCreateMember, onUpdateMember, onDel
                     <h2>{t(team.name)}</h2>
                     <p>{t(getTeamShiftStatus(team))} · {memberCount(team.id)} {t("أعضاء")}</p>
                   </div>
+                  <div className="team-directory-actions">
                     <button type="button" className={`team-shift-status ${getTeamShiftStatus(team) === "خارج المناوبة" ? "off-shift" : getTeamShiftStatus(team) === "مشغول" ? "busy" : "available"}`} onClick={() => onToggleTeamAvailability(team)} title={t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))} aria-label={`${t("تغيير حالة الفريق")}: ${t(getNextTeamAvailabilityLabel(getTeamShiftStatus(team)))}`}>
                       {t(getTeamShiftStatus(team))}
                     </button>
+                    {onEditTeam && onDeleteTeam && (
+                      <details className="actions-dropdown">
+                        <summary aria-label={t("إجراءات الفريق")}><AppIcon name="more" size={18} /></summary>
+                        <div>
+                          <button type="button" onClick={() => onEditTeam(team)}>{t("تعديل الفريق")}</button>
+                          <button type="button" className="danger-action" onClick={() => onDeleteTeam(team)}>{t("حذف الفريق")}</button>
+                        </div>
+                      </details>
+                    )}
+                  </div>
                 </header>
                 <div className="team-directory-members">
                   {members.filter((member) => member.teamId === team.id).map((member) => (
@@ -2606,7 +2617,7 @@ function Workspace({ user, profile }) {
         {error && <div className="global-error" role="alert">{t(error)}<button onClick={() => setError("")}>×</button></div>}
         {notificationAlert && <div className="check-toast" role="status"><span><AppIcon name="alert" size={16} />{t("طلب جيك جديد")} #{notificationAlert.taskNumber}</span><button onClick={() => { const task = tasks.find((item) => item.id === notificationAlert.taskId); if (task) { setSelected(task); setShowMap(false); setShowMembers(false); setShowDashboard(false); } setNotificationAlert(null); }}>{t("فتح الجيك")}</button><button className="toast-close" aria-label={t("إغلاق")} onClick={() => setNotificationAlert(null)}><AppIcon name="close" size={15} /></button></div>}
         {showTeams ? (
-          <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} onCreateTeam={() => { setError(""); setModal("team"); }} getTeamShiftStatus={getTeamShiftStatus} onToggleTeamAvailability={toggleTeamAvailability} initialView="teams" />
+          <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} onCreateTeam={() => { setError(""); setModal("team"); }} onEditTeam={beginEditTeam} onDeleteTeam={beginDeleteTeam} getTeamShiftStatus={getTeamShiftStatus} onToggleTeamAvailability={toggleTeamAvailability} initialView="teams" />
         ) : showMembers ? (
           <TeamMembersPage teams={teams} members={teamMembers} onCreateMember={createTeamMember} onUpdateMember={updateTeamMember} onDeleteMember={deleteTeamMember} initialView="members" />
         ) : showTasks ? (

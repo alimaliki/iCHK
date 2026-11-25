@@ -2285,6 +2285,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .team-directory-card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: 0 7px 22px #152b3b08; }
 .team-directory-header { display: flex; min-height: 74px; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--line); }
 .team-directory-header > div { display: grid; gap: 5px; }
+.team-directory-header > .team-directory-actions { display: flex; align-items: center; gap: 8px; }
 .team-directory-header h2 { margin: 0; color: var(--ink); font-size: 14px; }
 .team-directory-header p { margin: 0; color: var(--muted-ink); font-size: 10px; }
 .team-directory-members { display: grid; padding: 8px 12px 10px; }
