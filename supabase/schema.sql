@@ -24,7 +24,7 @@ create table public.teams (
 );
 
 alter table public.profiles
-  add constraint profiles_team_id_fkey foreign key (team_id) references public.teams(id) on delete set null;
+  add constraint profiles_team_id_fkey foreign key (team_id) references public.teams(id) on delete cascade;
 
 create table public.tasks (
   id text primary key check (id ~ '^[A-Z0-9_-]{1,40}$'),

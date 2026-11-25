@@ -18,6 +18,13 @@ end;
 alter table public.teams
   alter column availability set default 'ready';
 
+alter table public.profiles
+  drop constraint if exists profiles_team_id_fkey;
+
+alter table public.profiles
+  add constraint profiles_team_id_fkey
+  foreign key (team_id) references public.teams(id) on delete cascade;
+
 alter table public.teams
   add constraint teams_availability_check check (availability in ('ready', 'busy', 'off-shift')),
   drop constraint if exists teams_shift_check,
