@@ -2447,7 +2447,6 @@ function Workspace({ user, profile }) {
     setEditingTeam(team);
     setEditTeamName(team.name);
     setEditTeamShift(team.shift || "morning");
-    setResetTeamPassword("");
     setError("");
     setModal("editTeam");
   }
