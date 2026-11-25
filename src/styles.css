@@ -593,6 +593,224 @@ body, .app-shell { color: var(--ink); background: var(--app-canvas); }
 }
 
 .status-dot.check-request { background: #e28b37; box-shadow: 0 0 0 3px #e28b371c; }
+
+/* Professional sign-in screen */
+.auth-layout {
+  direction: rtl;
+  background: #ffffff;
+}
+.auth-aside {
+  width: 50%;
+  min-height: 100vh;
+  padding: 34px 8.5% 54px;
+  background:
+    linear-gradient(135deg, rgba(3, 78, 77, .12), rgba(4, 52, 56, .38)),
+    url("/ichk-brand-art.png") center / cover no-repeat,
+    #075d60;
+  isolation: isolate;
+}
+.auth-aside::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(8, 92, 94, .18) 0%, rgba(5, 69, 72, .82) 100%);
+  content: "";
+}
+.auth-aside::after {
+  right: auto;
+  left: -220px;
+  bottom: -210px;
+  width: 470px;
+  height: 470px;
+  border-color: rgba(255, 255, 255, .09);
+  box-shadow: 0 0 0 70px rgba(255, 255, 255, .035), 0 0 0 140px rgba(255, 255, 255, .018);
+}
+.auth-aside .brand {
+  justify-content: flex-end;
+  align-self: stretch;
+}
+.auth-aside .brand-logo {
+  width: 174px;
+  height: 87px;
+  flex-basis: 174px;
+  filter: brightness(0) invert(1);
+}
+.aside-copy {
+  max-width: 520px;
+  margin-right: 8%;
+  padding-bottom: 44px;
+}
+.aside-kicker {
+  display: inline-block;
+  color: #d1efea;
+  font-size: 12px;
+  font-weight: 600;
+}
+.aside-copy h1 {
+  max-width: 480px;
+  margin: 18px 0 20px;
+  color: #ffffff;
+  font-size: clamp(34px, 3.3vw, 52px);
+  line-height: 1.38;
+  letter-spacing: -1.2px;
+  text-wrap: balance;
+}
+.aside-copy p {
+  max-width: 440px;
+  color: #d2ebe7;
+  font-size: 14px;
+  line-height: 2;
+}
+.aside-note {
+  position: relative;
+  z-index: 1;
+  color: #c8e3df;
+  font-size: 11px;
+}
+.auth-main {
+  min-width: 0;
+  padding: 44px 56px;
+  background: #ffffff;
+}
+.auth-preferences {
+  top: 24px;
+  left: 24px;
+  right: auto;
+}
+.auth-card {
+  width: min(100%, 390px);
+  padding: 12px 0 0;
+}
+.auth-card > .brand {
+  justify-content: center;
+  margin-bottom: 44px;
+}
+.auth-card > .brand .brand-logo {
+  width: 132px;
+  height: 66px;
+  flex-basis: 132px;
+  filter: none;
+}
+.auth-card > .eyebrow {
+  color: #15958e;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+}
+.auth-card h2 {
+  margin-top: 10px;
+  font-size: 28px;
+  line-height: 1.25;
+  text-align: right;
+}
+.auth-card > .muted {
+  margin: 10px 0 26px;
+  color: #96a4a0;
+  text-align: right;
+  font-size: 12px;
+}
+.auth-form {
+  gap: 17px;
+}
+.auth-form label {
+  gap: 8px;
+  color: #3e4e47;
+  text-align: right;
+  font-size: 11px;
+}
+.auth-form input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #e1e7e4;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 2px rgba(20, 48, 38, .02);
+  text-align: right;
+  font-size: 13px;
+  direction: ltr;
+}
+.auth-form input::placeholder {
+  color: #bdc4c1;
+  direction: rtl;
+  text-align: right;
+}
+.auth-form input:focus {
+  border-color: #35a49c;
+  box-shadow: 0 0 0 4px rgba(53, 164, 156, .10);
+}
+.auth-form .button {
+  height: 50px;
+  min-height: 50px;
+  margin-top: 7px;
+  border-radius: 10px;
+  background: #0e73f1;
+  box-shadow: 0 8px 18px rgba(14, 115, 241, .16);
+  font-size: 13px;
+}
+.auth-form .button:hover {
+  background: #0864d6;
+}
+.auth-security {
+  margin-top: 30px;
+  color: #a1aaa6;
+  border-top: 1px solid #edf1ef;
+  direction: rtl;
+  font-size: 10px;
+}
+.auth-security span {
+  color: #63a48e;
+}
+
+[dir="ltr"] .auth-layout { direction: ltr; }
+[dir="ltr"] .aside-copy { margin-right: 0; margin-left: 8%; }
+[dir="ltr"] .auth-card > .eyebrow,
+[dir="ltr"] .auth-card h2,
+[dir="ltr"] .auth-card > .muted,
+[dir="ltr"] .auth-form label { text-align: left; }
+[dir="ltr"] .auth-preferences { right: 24px; left: auto; }
+
+@media (max-width: 850px) {
+  .auth-aside { width: 42%; padding-right: 5%; padding-left: 5%; }
+  .auth-main { padding: 44px 34px; }
+  .aside-copy { margin-right: 0; }
+  .aside-copy h1 { font-size: 32px; }
+}
+@media (max-width: 620px) {
+  .auth-layout {
+    min-height: 100dvh;
+    background:
+      linear-gradient(180deg, rgba(4, 84, 86, .94), rgba(5, 58, 61, .98)),
+      url("/ichk-brand-art.png") center / cover no-repeat;
+  }
+  .auth-aside { display: none; }
+  .auth-main {
+    width: 100%;
+    min-height: 100dvh;
+    align-content: center;
+    padding: 82px 22px 28px;
+    background: transparent;
+  }
+  .auth-card {
+    padding: 28px 22px 22px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 24px 60px rgba(3, 35, 38, .22);
+  }
+  .auth-card > .brand { margin-bottom: 24px; }
+  .auth-card > .brand .brand-logo {
+    width: 120px;
+    height: 60px;
+    flex-basis: 120px;
+  }
+  .auth-card h2 { font-size: 24px; }
+  .auth-preferences {
+    top: 18px;
+    left: 18px;
+  }
+  [dir="ltr"] .auth-preferences { right: 18px; left: auto; }
+}
 .check-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 13px; padding: 11px 13px; border: 1px solid #f1dfbf; border-radius: 10px; color: #795b27; background: #fffaf0; }
 .check-banner-icon { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 9px; color: #976c21; background: #f9e9c9; font-weight: 700; }
 .check-banner > div { display: grid; flex: 1; gap: 3px; }
