@@ -1843,10 +1843,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-shift-teams > header { display: flex; align-items: center; justify-content: space-between; color: var(--muted-ink); font-size: 10px; font-weight: 650; }
 .dashboard-shift-teams > header strong { display: grid; min-width: 21px; height: 21px; place-items: center; border-radius: 7px; color: #087f7a; background: #e7f6f3; font-size: 9px; }
 .dashboard-shift-teams ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 0; max-height: max(0px, calc(100dvh - 340px)); gap: 4px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
-.dashboard-shift-teams li { display: flex; min-width: 0; min-height: 28px; align-items: center; gap: 4px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: 10px; }
+.dashboard-shift-teams li { display: grid; grid-template-columns: 13px minmax(0, 1fr) 22px; min-width: 0; min-height: 28px; align-items: center; gap: 5px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: 11px; }
 .dashboard-shift-teams li > .app-icon { color: #168db1; }
-.dashboard-shift-teams li > span { min-width: 0; flex: 0 1 auto; overflow-wrap: anywhere; line-height: 1.2; }
-.dashboard-team-status-dot { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.dashboard-shift-teams li > span { min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
+.dashboard-team-status-dot { display: grid; width: 22px; height: 22px; place-items: center; justify-self: end; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
 .dashboard-team-status-dot i { width: 9px; height: 9px; border-radius: 50%; transition: transform .15s, box-shadow .15s; }
 .dashboard-team-status-dot.available i { background: #22a06b; box-shadow: 0 0 0 3px #22a06b20; }
 .dashboard-team-status-dot.busy i { background: #f39b27; box-shadow: 0 0 0 3px #f39b2720; }
