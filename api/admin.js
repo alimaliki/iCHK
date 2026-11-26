@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
+import { governorateAliases, normalizeGovernorateText } from "../src/governorateAliases.js";
 
 const usernameEmail = (username) => `${username}@teams.wasla.invalid`;
 const isValidId = (value) => typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
@@ -78,6 +80,8 @@ export default async function handler(req, res) {
       result = await createTeam(admin, userData.user.id, input);
     } else if (operation === "createTeamAccount") {
       result = await createTeamAccount(admin, userData.user.id, input);
+    } else if (operation === "importFmsCase") {
+      result = await importFmsCase(admin, userData.user.id, input.case);
     } else if (operation === "updateTeamAccount") {
       result = await updateTeam(admin, input);
     } else if (operation === "setTeamAvailability") {
@@ -94,6 +98,102 @@ export default async function handler(req, res) {
     const mapped = errorResponse(error);
     return respond(res, mapped.status, mapped.body);
   }
+}
+
+export async function importFmsCase(admin, supervisorId, input) {
+  const invalidCase = (message) => {
+    const error = new Error(message);
+    error.code = "functions/invalid-argument";
+    return error;
+  };
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw invalidCase("Provide valid FMS case details.");
+  }
+
+  const readText = (value, label, maxLength, fallback = "") => {
+    const text = value == null ? fallback : String(value).trim();
+    if (text.length > maxLength) throw invalidCase(`${label} is too long.`);
+    return text;
+  };
+  const src = readText(input.src, "Case ID", 100);
+  if (!/^[A-Za-z0-9-]{1,100}$/.test(src)) {
+    throw invalidCase("Provide a valid case ID.");
+  }
+
+  const { data: existing, error: existingError } = await admin
+    .from("tasks")
+    .select("id")
+    .ilike("src", src)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return { alreadyExists: true, taskId: existing.id };
+
+  const fmsUrlValue = readText(input.taskUrl || input.fms_id, "FMS URL", 2048);
+  let fmsId = "";
+  if (/^https?:\/\//i.test(fmsUrlValue)) {
+    let fmsUrl;
+    try {
+      fmsUrl = new URL(fmsUrlValue);
+    } catch {
+      throw invalidCase("Provide a valid FMS task URL.");
+    }
+    if (fmsUrl.origin !== "https://msp.go2field.iq" ||
+        !/^\/task\/[a-z0-9-]+\/?$/i.test(fmsUrl.pathname)) {
+      throw invalidCase("The FMS URL must link to an FMS task.");
+    }
+    fmsId = fmsUrl.href;
+  }
+
+  const region = readText(input.region, "Region", 120, "Nasria") || "Nasria";
+  const governorate = Object.entries(governorateAliases).find(([, aliases]) =>
+    aliases.some((alias) => normalizeGovernorateText(alias) === normalizeGovernorateText(region))
+  )?.[0] || "DQ";
+
+  const caseCreatedAtValue = input.created_at || input.case_created_at;
+  const caseCreatedAt = caseCreatedAtValue ? new Date(caseCreatedAtValue) : null;
+  if (caseCreatedAt && Number.isNaN(caseCreatedAt.getTime())) {
+    throw invalidCase("Provide a valid case creation date.");
+  }
+
+  const taskNumber = `FMS-${createHash("sha256").update(src.toLowerCase()).digest("hex").slice(0, 32).toUpperCase()}`;
+  const { data, error } = await admin.from("tasks").insert({
+    id: taskNumber,
+    task_number: taskNumber,
+    title: `SRC ${src}`,
+    description: readText(input.description, "Description", 2000),
+    src,
+    fms_id: fmsId,
+    department: readText(input.department, "Department", 120, "Support") || "Support",
+    region,
+    fdt: readText(input.fdt, "FDT", 120),
+    efu: readText(input.efu, "EFU", 80, "0") || "0",
+    maintenance: readText(input.maintenance, "Maintenance", 120),
+    case_status: readText(input.case_status || input.status, "Case status", 120, "Last Mile") || "Last Mile",
+    escalation: readText(input.escalation, "Escalation", 120, "Open") || "Open",
+    gr_request: input.gr_request === true || /^yes$/i.test(String(input.gr_request || "")) ? "yes" : "no",
+    case_created_at: caseCreatedAt?.toISOString() || null,
+    location: region,
+    governorates: [governorate],
+    governorate,
+    team_id: null,
+    team_name: null,
+    status: "open",
+    check_status: "none",
+    created_by: supervisorId,
+  }).select("id").single();
+  if (error?.code === "23505") {
+    const { data: duplicate, error: duplicateError } = await admin
+      .from("tasks")
+      .select("id")
+      .ilike("src", src)
+      .limit(1)
+      .maybeSingle();
+    if (duplicateError) throw duplicateError;
+    if (duplicate) return { alreadyExists: true, taskId: duplicate.id };
+  }
+  if (error) throw error;
+  return { imported: true, taskId: data.id };
 }
 
 async function createTeamAccount(admin, supervisorId, input) {
