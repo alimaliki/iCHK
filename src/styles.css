@@ -1226,12 +1226,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .task-level-dot.completed { background: #37ba94; }
 .tasks-status-page { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 26px clamp(18px, 3vw, 42px) 34px; background: var(--app-canvas); }
 .tasks-status-page { display: flex; flex-direction: column; overflow: hidden; }
-.tasks-status-header { width: min(100%, 520px); flex: 0 0 auto; margin: 0 0 18px; }
+.tasks-status-header { width: 100%; max-width: none; flex: 0 0 auto; margin: 0 0 18px; }
 .tasks-status-header > div { display: grid; gap: 6px; }
 .tasks-status-header span { color: #0c8b87; font-size: 11px; font-weight: 700; }
 .tasks-status-header h1 { margin: 0; color: var(--ink); font-size: 27px; }
 .tasks-status-header p { margin: 0; color: var(--muted-ink); font-size: 11px; }
-.tasks-status-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: min(100%, 520px); margin-inline: 0 auto; }
+.tasks-status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 12px; width: 100%; max-width: none; margin-inline: 0; }
 .tasks-status-grid {
   flex: 1 1 auto;
   min-height: 0;
