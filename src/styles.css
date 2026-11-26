@@ -1835,7 +1835,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-shift-teams { display: grid; gap: 7px; margin: 0 0 9px; }
 .dashboard-shift-teams > header { display: flex; align-items: center; justify-content: space-between; color: var(--muted-ink); font-size: 10px; font-weight: 650; }
 .dashboard-shift-teams > header strong { display: grid; min-width: 21px; height: 21px; place-items: center; border-radius: 7px; color: #087f7a; background: #e7f6f3; font-size: 9px; }
-.dashboard-shift-teams ul { display: grid; max-height: 145px; gap: 5px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+.dashboard-shift-teams ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .dashboard-shift-teams li { display: flex; min-width: 0; min-height: 29px; align-items: center; gap: 7px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font-size: 9px; }
 .dashboard-shift-teams li > .app-icon { color: #168db1; }
 .dashboard-shift-teams li > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
