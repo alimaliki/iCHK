@@ -1230,7 +1230,14 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .tasks-status-header span { color: #0c8b87; font-size: 11px; font-weight: 700; }
 .tasks-status-header h1 { margin: 0; color: var(--ink); font-size: 27px; }
 .tasks-status-header p { margin: 0; color: var(--muted-ink); font-size: 11px; }
-.tasks-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 12px; width: min(100%, 1320px); margin-inline: auto; }
+.tasks-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 12px; width: min(100%, 1320px); margin-inline: auto; }
+.tasks-status-grid .task-case-card { gap: 7px; padding: 10px; }
+.tasks-status-grid .task-case-header { padding-bottom: 6px; }
+.tasks-status-grid .task-case-fields { gap: 6px; }
+.tasks-status-grid .task-case-field { padding: 6px; }
+.tasks-status-grid .task-case-description { padding: 7px; }
+.tasks-status-grid .task-case-timer { gap: 6px; padding: 7px; }
+.tasks-status-grid .task-case-footer { flex-wrap: wrap; padding-top: 6px; }
 .task-case-card { display: grid; min-width: 0; gap: 9px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--surface); box-shadow: 0 8px 24px #10243b12; }
 .task-case-card:hover { border-color: #1785ad; }
 .task-case-header,
