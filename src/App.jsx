@@ -787,6 +787,12 @@ function normalizeTaskClosedAt(value) {
   return date.toISOString();
 }
 
+function normalizeTaskCreatedAt(value) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) throw new Error("حدد وقت إنشاء صالحاً.");
+  return date.toISOString();
+}
+
 function getSafeFmsUrl(value) {
   if (typeof value !== "string" || !value.trim()) return "";
   try {
@@ -2052,6 +2058,7 @@ function Workspace({ user, profile }) {
   const [profileNotice, setProfileNotice] = useState("");
   const [editingTask, setEditingTask] = useState(null);
   const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskCreatedAt, setEditTaskCreatedAt] = useState("");
   const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
   const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
@@ -2364,6 +2371,7 @@ function Workspace({ user, profile }) {
   function beginEditTask(task) {
     setEditingTask(task);
     setEditTaskDescription(task.description || "");
+    setEditTaskCreatedAt(toDateTimeInput(task.createdAt));
     setEditTaskClosedAt(toDateTimeInput(task.closedAt));
     setEditTaskCaseDetails(getTaskCaseFormValues(task));
     setEditTaskTeamId(task.teamId || "");
@@ -2380,10 +2388,16 @@ function Workspace({ user, profile }) {
     }
     try {
       const caseDetails = normalizeTaskCaseDetails(editTaskCaseDetails);
+      const createdAt = normalizeTaskCreatedAt(editTaskCreatedAt);
+      const closedAt = editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null;
+      if (closedAt && new Date(closedAt).getTime() < new Date(createdAt).getTime()) {
+        throw new Error("وقت الإغلاق يجب أن يكون بعد وقت إنشاء المهمة.");
+      }
       const governorate = getTaskGovernorateForRegion(caseDetails.region);
       await updateDoc(doc(db, "tasks", editingTask.id), {
         description: editTaskDescription.trim(),
-        closedAt: editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null,
+        createdAt,
+        closedAt,
         ...caseDetails,
         location: caseDetails.region,
         governorates: [governorate],
@@ -2672,6 +2686,7 @@ function Workspace({ user, profile }) {
         <Modal title={t("تعديل التكت")} subtitle={`${t("المهمة")} #${editingTask.taskNumber} · ${t("رقم المهمة لا يتغير للحفاظ على سجل المحادثة.")}`} onClose={() => setModal("")}>
           <form className="modal-form" onSubmit={saveTaskChanges}>
             <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)}><option value="">{t("غير مسند")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)} · {t(getTeamShiftStatus(team))}</option>)}</select></label>
+            <label>{t("تاريخ إضافة المهمة")}<input type="datetime-local" value={editTaskCreatedAt} onChange={(event) => setEditTaskCreatedAt(event.target.value)} required /></label>
             {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
             <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
@@ -2817,6 +2832,7 @@ function DemoWorkspace() {
   const [editingTask, setEditingTask] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
   const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskCreatedAt, setEditTaskCreatedAt] = useState("");
   const [editTaskClosedAt, setEditTaskClosedAt] = useState("");
   const [editTaskCaseDetails, setEditTaskCaseDetails] = useState(EMPTY_CASE_DETAILS);
   const [editTaskTeamId, setEditTaskTeamId] = useState("");
@@ -2869,6 +2885,7 @@ function DemoWorkspace() {
   function beginEditDemoTask(task) {
     setEditingTask(task);
     setEditTaskDescription(task.description || "");
+    setEditTaskCreatedAt(toDateTimeInput(task.createdAt));
     setEditTaskClosedAt(toDateTimeInput(task.closedAt));
     setEditTaskCaseDetails(getTaskCaseFormValues(task));
     setEditTaskTeamId(task.teamId || "");
@@ -2884,10 +2901,15 @@ function DemoWorkspace() {
       return;
     }
     let caseDetails;
+    let createdAt;
     let closedAt;
     try {
       caseDetails = normalizeTaskCaseDetails(editTaskCaseDetails);
+      createdAt = normalizeTaskCreatedAt(editTaskCreatedAt);
       closedAt = editingTask.status === "done" ? normalizeTaskClosedAt(editTaskClosedAt) : null;
+      if (closedAt && new Date(closedAt).getTime() < new Date(createdAt).getTime()) {
+        throw new Error("وقت الإغلاق يجب أن يكون بعد وقت إنشاء المهمة.");
+      }
     } catch (saveError) {
       setError(friendlyError(saveError));
       return;
@@ -2895,6 +2917,7 @@ function DemoWorkspace() {
     setTasks((current) => current.map((item) => item.id === editingTask.id ? {
       ...item,
       description: editTaskDescription.trim(),
+      createdAt,
       closedAt,
       ...caseDetails,
       location: caseDetails.region,
@@ -3082,6 +3105,7 @@ function DemoWorkspace() {
         <Modal title={t("تعديل التكت")} subtitle={`${t("المهمة")} #${editingTask.taskNumber} · ${t("رقم المهمة لا يتغير للحفاظ على سجل المحادثة.")}`} onClose={() => { setModal(""); setEditingTask(null); }}>
           <form className="modal-form" onSubmit={saveDemoTaskChanges}>
             <label>{t("اختر الفريق")}<select value={editTaskTeamId} onChange={(event) => setEditTaskTeamId(event.target.value)}><option value="">{t("غير مسند")}</option>{teams.map((team) => <option key={team.id} value={team.id}>{t(team.name)}</option>)}</select></label>
+            <label>{t("تاريخ إضافة المهمة")}<input type="datetime-local" value={editTaskCreatedAt} onChange={(event) => setEditTaskCreatedAt(event.target.value)} required /></label>
             {editingTask.status === "done" && <label>{t("وقت إغلاق المهمة")}<input type="datetime-local" value={editTaskClosedAt} onChange={(event) => setEditTaskClosedAt(event.target.value)} required /></label>}
             <CaseDetailsFields values={editTaskCaseDetails} onChange={(key, value) => setEditTaskCaseDetails((current) => ({ ...current, [key]: value }))} description={editTaskDescription} onDescriptionChange={setEditTaskDescription} />
             {error && <p className="form-error">{t(error)}</p>}
