@@ -118,8 +118,8 @@ begin
       and (new.archived = old.archived or old.status = 'done' or new.archived = false) then
       return new;
     end if;
-    if (to_jsonb(new) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
-      = (to_jsonb(old) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
+    if (to_jsonb(new) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
+      = (to_jsonb(old) - array['title', 'description', 'src', 'fms_id', 'department', 'region', 'fdt', 'efu', 'maintenance', 'case_status', 'escalation', 'gr_request', 'case_created_at', 'created_at', 'location', 'governorates', 'governorate', 'team_id', 'team_name', 'status', 'closed_at'])
       and length(new.title) between 1 and 160
       and length(new.description) <= 2000
       and length(new.location) <= 120
