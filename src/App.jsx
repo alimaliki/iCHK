@@ -1742,7 +1742,7 @@ function DashboardView({ role, tasks, teams = [], getTeamShiftStatus, onToggleTe
       t(task.teamName || ""),
     ].join(" ").toLocaleLowerCase().includes(normalizedSearch))
     : selectedTasks;
-  const featuredTasks = filteredTasks.slice(0, 4);
+  const featuredTasks = filteredTasks;
   const highlightedCodes = getTaskGovernorateCodesForTasks(mapTasks);
   const highlightedNames = selectedGovernorate
     ? [getGovernorateName(selectedGovernorate, language)]

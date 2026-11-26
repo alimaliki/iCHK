@@ -1225,12 +1225,24 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .task-level-dot.hold { background: #e8ad42; }
 .task-level-dot.completed { background: #37ba94; }
 .tasks-status-page { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: 26px clamp(18px, 3vw, 42px) 34px; background: var(--app-canvas); }
-.tasks-status-header { max-width: 1320px; margin: 0 auto 18px; }
+.tasks-status-page { display: flex; flex-direction: column; overflow: hidden; }
+.tasks-status-header { width: min(100%, 520px); flex: 0 0 auto; margin: 0 0 18px; }
 .tasks-status-header > div { display: grid; gap: 6px; }
 .tasks-status-header span { color: #0c8b87; font-size: 11px; font-weight: 700; }
 .tasks-status-header h1 { margin: 0; color: var(--ink); font-size: 27px; }
 .tasks-status-header p { margin: 0; color: var(--muted-ink); font-size: 11px; }
 .tasks-status-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; width: min(100%, 520px); margin-inline: 0 auto; }
+.tasks-status-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline: 0;
+  padding-inline-end: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #536778 transparent;
+}
 .task-case-card { display: grid; min-width: 0; gap: 9px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--surface); box-shadow: 0 8px 24px #10243b12; }
 .task-case-card:hover { border-color: #1785ad; }
 .task-case-header,
@@ -1319,7 +1331,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .dashboard-page {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 25px clamp(18px, 3vw, 42px) 32px;
   color: var(--ink);
   background:
@@ -1615,10 +1627,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   grid-template-columns: minmax(250px, .9fr) minmax(300px, 1.1fr) minmax(220px, .75fr);
   align-items: stretch;
   gap: 15px;
+  height: calc(100dvh - 300px);
+  min-height: 420px;
 }
 
 .dashboard-panel {
   min-width: 0;
+  min-height: 0;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -1783,6 +1798,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 .dashboard-case-list { display: grid; }
+.dashboard-cases {
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-cases .dashboard-case-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline-end: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: #536778 transparent;
+}
+.dashboard-cases-footer {
+  flex: 0 0 auto;
+}
 
 .dashboard-case {
   display: grid;
@@ -1931,7 +1963,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 
 @media (max-width: 760px) {
-  .dashboard-page { padding: 18px 15px 26px; }
+  .dashboard-page { overflow-y: auto; padding: 18px 15px 26px; }
   .dashboard-heading { align-items: flex-start; flex-wrap: wrap; margin-bottom: 16px; }
   .dashboard-heading > div:first-child { flex: 1 1 100%; }
   .dashboard-heading h1 { font-size: 24px; }
@@ -1942,7 +1974,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .dashboard-stat-icon { width: 40px; height: 40px; flex-basis: 40px; border-radius: 12px; }
   .dashboard-stat-copy strong { font-size: 21px; }
   .dashboard-stat-copy small { font-size: 10px; }
-  .dashboard-grid { grid-template-columns: minmax(0, 1fr); gap: 11px; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; gap: 11px; }
+  .dashboard-cases .dashboard-case-list { overflow: visible; }
   .dashboard-locations,
   .dashboard-cases,
   .dashboard-quick-actions { grid-column: auto; grid-row: auto; }
