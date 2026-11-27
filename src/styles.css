@@ -1971,6 +1971,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 
 @media (min-width: 1121px) {
   .dashboard-page { display: flex; flex-direction: column; overflow: hidden; }
+  .dashboard-heading { width: 100%; direction: ltr; }
+  .dashboard-search { margin-left: auto; }
+  [dir="rtl"] .dashboard-heading > div:first-child,
+  [dir="rtl"] .dashboard-search,
+  [dir="rtl"] .dashboard-live { direction: rtl; }
   .dashboard-heading,
   .dashboard-stats { flex: 0 0 auto; }
   .dashboard-grid { flex: 1 1 0; min-height: 0; grid-template-rows: minmax(0, 1fr); }
