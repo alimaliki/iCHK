@@ -970,7 +970,10 @@ function friendlyError(error) {
 function Sidebar({ role, email, displayName, teamName, selected, tasks, showDashboard, showMap, showTeams, showMembers, showTasks, onShowDashboard, onShowMap, onShowTeams, onShowMembers, onShowTasks, onSelect, onLogout, onCreateTask, onCreateTeam, onManageTeams, onEditProfile, pendingCheckTasks = [], notificationsEnabled, onEnableNotifications, onOpenTask, demoTeams, demoTeamId, onDemoTeamChange, onDemoRoleChange }) {
   const t = useCopy();
   const { language } = usePreferences();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("wasla.sidebar-collapsed") === "true");
+  useEffect(() => {
+    localStorage.setItem("wasla.sidebar-collapsed", String(collapsed));
+  }, [collapsed]);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [checkMenuOpen, setCheckMenuOpen] = useState(false);
